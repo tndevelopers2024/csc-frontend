@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+}
+
+@layer base {
+  html, body, #root {
+    min-height: 100vh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.custom-phone-input .PhoneInputInput {
+  border: none;
+  outline: none;
+  background: transparent;
+  flex: 1;
+  padding-left: 0.5rem;
+}
+
+.custom-phone-input .PhoneInputCountry {
+  margin-right: 0.5rem;
+  padding-right: 0.5rem;
+  border-right: 1px solid #d1d5db;
+}
