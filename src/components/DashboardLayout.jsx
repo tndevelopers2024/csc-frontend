@@ -10,6 +10,7 @@ export default function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [user, setUser] = useState(null);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -32,8 +33,29 @@ export default function DashboardLayout() {
         navigate('/login');
       }
     };
+
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/notifications`, {
+          headers: {
+            'x-auth-token': token
+          }
+        });
+        const unread = res.data.filter(n => !n.isRead).length;
+        setUnreadCount(unread);
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    };
     
     fetchUser();
+    fetchNotifications();
+
+    // Optional: Poll for notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, [navigate]);
 
   const handleLogout = () => {
@@ -78,9 +100,16 @@ export default function DashboardLayout() {
             <BiHelpCircle className="text-xl mr-2" />
             Help Center
           </a>
-          <button className="relative hover:text-blue-600 transition-colors">
+          <button 
+            onClick={() => navigate('/dashboard/notifications')}
+            className="relative hover:text-blue-600 transition-colors"
+          >
             <BiBell className="text-2xl" />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-sm">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
           <div className="h-6 w-px bg-gray-200 ml-2"></div>
           <div className="relative">

@@ -37,8 +37,12 @@ export default function Login() {
       // Store token
       localStorage.setItem('token', res.data.token);
       
-      // Redirect to dashboard
-      navigate('/dashboard');
+      // Redirect based on role
+      if (res.data.user && res.data.user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password.');
     } finally {
