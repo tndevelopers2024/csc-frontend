@@ -2,15 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { FiBellOff, FiBell, FiCheck, FiInfo, FiFileText } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useSocket } from '../context/SocketContext';
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const socket = useSocket();
+
   useEffect(() => {
     fetchNotifications();
-  }, []);
+    
+    if (socket) {
+      socket.on('newNotification', fetchNotifications);
+      socket.on('notificationsUpdated', fetchNotifications);
+      
+      return () => {
+        socket.off('newNotification', fetchNotifications);
+        socket.off('notificationsUpdated', fetchNotifications);
+      };
+    }
+  }, [socket]);
 
   const fetchNotifications = async () => {
     try {

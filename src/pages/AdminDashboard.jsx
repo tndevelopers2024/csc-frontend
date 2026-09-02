@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BiSearch } from 'react-icons/bi';
 import { FaHourglassHalf, FaFileInvoice, FaCheckCircle, FaTimesCircle, FaHardHat, FaExclamationTriangle, FaFlagCheckered } from 'react-icons/fa';
+import { useSocket } from '../context/SocketContext';
 
 export default function AdminDashboard() {
+  const socket = useSocket();
   const [stats, setStats] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,17 @@ export default function AdminDashboard() {
     };
     
     fetchData();
-  }, []);
+    
+    if (socket) {
+      socket.on('newProject', fetchData);
+      socket.on('projectUpdated', fetchData);
+      
+      return () => {
+        socket.off('newProject', fetchData);
+        socket.off('projectUpdated', fetchData);
+      };
+    }
+  }, [socket]);
 
   if (loading) {
     return (
@@ -44,13 +56,13 @@ export default function AdminDashboard() {
   }
 
   const statCards = [
-    { label: 'Requested', count: stats?.requested || 0, icon: <FaHourglassHalf className="text-amber-500" /> },
-    { label: 'Quoted', count: stats?.quoted || 0, icon: <FaFileInvoice className="text-blue-500" /> },
-    { label: 'Approved', count: stats?.approved || 0, icon: <FaCheckCircle className="text-green-500" /> },
-    { label: 'Rejected', count: stats?.rejected || 0, icon: <FaTimesCircle className="text-red-500" /> },
-    { label: 'Ongoing', count: stats?.ongoing || 0, icon: <FaHardHat className="text-yellow-500" /> },
-    { label: 'Reported', count: stats?.reported || 0, icon: <FaExclamationTriangle className="text-yellow-400" /> },
-    { label: 'Completed', count: stats?.completed || 0, icon: <FaFlagCheckered className="text-gray-600" /> },
+    { label: 'Requested', count: stats?.requested || 0, borderColor: 'border-yellow-400', subtitle: 'Awaiting quote' },
+    { label: 'Quoted', count: stats?.quoted || 0, borderColor: 'border-blue-400', subtitle: 'Pending approval' },
+    { label: 'Approved', count: stats?.approved || 0, borderColor: 'border-indigo-400', subtitle: 'Ready to start' },
+    { label: 'Ongoing', count: stats?.ongoing || 0, borderColor: 'border-purple-400', subtitle: 'In progress now' },
+    { label: 'Completed', count: stats?.completed || 0, borderColor: 'border-green-400', subtitle: 'All delivered' },
+    { label: 'Reported', count: stats?.reported || 0, borderColor: 'border-orange-400', subtitle: 'Needs attention' },
+    { label: 'Rejected', count: stats?.rejected || 0, borderColor: 'border-red-400', subtitle: 'Declined' },
   ];
 
   const filters = ['All', 'Requested', 'Quoted', 'Approved', 'Rejected', 'Ongoing', 'Reported', 'Completed'];
@@ -69,7 +81,6 @@ export default function AdminDashboard() {
         return 'Rejected';
       case 'In Progress':
       case 'QA Review':
-      case 'Delivered':
       case 'Under Review':
       case 'Revision Requested':
       case 'Ongoing':
@@ -77,6 +88,7 @@ export default function AdminDashboard() {
       case 'Reported':
         return 'Reported';
       case 'Completed':
+      case 'Delivered':
         return 'Completed';
       default:
         return 'All';
@@ -97,24 +109,21 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-[1400px] mx-auto pb-12 font-sans">
       
-      {/* Purple Banner */}
-      <div className="bg-[#7c3aed] rounded-xl p-8 text-white mb-6 shadow-lg shadow-purple-500/20">
-        <h1 className="text-3xl font-bold mb-1">Quotation Dashboard</h1>
-        <p className="text-purple-200 text-sm mb-8">{stats?.totalQuotations || 0} total quotations</p>
-        
-        <div className="flex flex-wrap gap-4">
-          {statCards.map((stat, i) => (
-            <div key={i} className="bg-white text-gray-800 rounded-lg py-3 px-4 flex-1 min-w-[120px] shadow-sm flex items-center gap-3">
-              <div className="text-xl shrink-0">
-                {stat.icon}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">{stat.label}</span>
-                <span className="text-lg font-bold leading-tight">{stat.count}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Title */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-1">Quotation Dashboard</h1>
+        <p className="text-gray-500 text-sm">{stats?.totalQuotations || 0} total quotations across all users</p>
+      </div>
+      
+      {/* Overview Widgets */}
+      <div className="mb-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        {statCards.map((stat, i) => (
+          <div key={i} className={`bg-white rounded-xl p-5 border shadow-sm flex flex-col ${stat.borderColor}`}>
+            <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">{stat.label}</h3>
+            <div className="text-4xl font-bold text-gray-900 mb-1">{stat.count}</div>
+            <p className="text-xs text-gray-400 font-medium">{stat.subtitle}</p>
+          </div>
+        ))}
       </div>
 
       {/* Toolbar */}
@@ -195,9 +204,9 @@ export default function AdminDashboard() {
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#fff8ea] text-[#d97706] text-[11px] font-bold border border-[#fde68a]">
                           <FaHourglassHalf size={10} /> Requested
                         </span>
-                      ) : project.status === 'Completed' ? (
+                      ) : (project.status === 'Completed' || project.status === 'Delivered') ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-gray-100 text-gray-600 text-[11px] font-bold border border-gray-200">
-                          <FaFlagCheckered size={10} /> Completed
+                          <FaFlagCheckered size={10} /> {project.status}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-50 text-blue-600 text-[11px] font-bold border border-blue-200">

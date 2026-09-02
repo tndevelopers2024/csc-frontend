@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { BsCloudUpload } from 'react-icons/bs';
 import { BiChevronRight, BiShieldAlt2 } from 'react-icons/bi';
-import { FiArrowRight, FiArrowLeft, FiTrash2 } from 'react-icons/fi';
+import { FiArrowRight, FiArrowLeft, FiTrash2, FiFileText, FiLink, FiBox, FiSettings } from 'react-icons/fi';
 import { IoInformationCircleOutline } from 'react-icons/io5';
 import { TbScan } from 'react-icons/tb';
 import { FaCheck } from 'react-icons/fa';
@@ -52,6 +52,7 @@ const CustomDropdown = ({ options, placeholder, value, onChange }) => {
 
 export default function NewProject() {
   const navigate = useNavigate();
+  const { user } = useOutletContext();
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadMethod, setUploadMethod] = useState('Upload');
   const [links, setLinks] = useState(['']);
@@ -132,7 +133,8 @@ export default function NewProject() {
       setError('Project title is required.');
       return;
     }
-    if (!formData.appType || !formData.accuracy || !formData.partSize || !formData.nda || !formData.useFreeHours) {
+    const hasFreeHours = user?.freeHoursRemaining > 0;
+    if (!formData.appType || !formData.accuracy || !formData.partSize || !formData.nda || (hasFreeHours && !formData.useFreeHours)) {
       setError('Please fill in all required Project Details.');
       return;
     }
@@ -155,8 +157,12 @@ export default function NewProject() {
       setError("Project title is required.");
       return;
     }
-    if (scanFiles.length === 0) {
+    if (uploadMethod === 'Upload' && scanFiles.length === 0) {
       setError("Please upload at least one scan file.");
+      return;
+    }
+    if (uploadMethod === 'Link' && links.filter(l => l.trim() !== '').length === 0) {
+      setError("Please provide at least one cloud/drive link.");
       return;
     }
 
@@ -178,6 +184,13 @@ export default function NewProject() {
     scanFiles.forEach(file => {
       data.append('scanFiles', file);
     });
+
+    data.append('uploadMethod', uploadMethod);
+    if (uploadMethod === 'Link') {
+      links.filter(l => l.trim() !== '').forEach(link => {
+        data.append('links', link);
+      });
+    }
 
     referenceImages.forEach(file => {
       data.append('referenceImages', file);
@@ -374,7 +387,7 @@ export default function NewProject() {
                       {scanFiles.map((f, i) => (
                         <li key={i} className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <span className="mr-2">📄</span> {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
+                            <FiFileText className="mr-2" /> {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
                           </div>
                           <button onClick={() => removeScanFile(i)} className="text-red-500 hover:text-red-700 text-xs font-bold">Remove</button>
                         </li>
@@ -439,7 +452,7 @@ export default function NewProject() {
                       {referenceImages.map((f, i) => (
                         <li key={i} className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <span className="mr-2">📄</span> {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
+                            <FiFileText className="mr-2" /> {f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)
                           </div>
                           <button onClick={() => removeReferenceImage(i)} className="text-red-500 hover:text-red-700 text-xs font-bold">Remove</button>
                         </li>
@@ -536,15 +549,17 @@ export default function NewProject() {
                       onChange={(val) => setFormData({...formData, nda: val})}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Use free 3 hours</label>
-                    <CustomDropdown 
-                      options={['Yes — apply free hours', 'No — save for later']}
-                      placeholder="Select to use free 3 hours"
-                      value={formData.useFreeHours}
-                      onChange={(val) => setFormData({...formData, useFreeHours: val})}
-                    />
-                  </div>
+                  {user?.freeHoursRemaining > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Use free 3 hours</label>
+                      <CustomDropdown 
+                        options={['Yes — apply free hours', 'No — save for later']}
+                        placeholder="Select to use free 3 hours"
+                        value={formData.useFreeHours}
+                        onChange={(val) => setFormData({...formData, useFreeHours: val})}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -719,15 +734,31 @@ export default function NewProject() {
                   <button onClick={() => setCurrentStep(1)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Change</button>
                 </div>
                 <div className="p-6">
-                  {scanFiles.length === 0 && referenceImages.length === 0 ? (
+                  {uploadMethod === 'Upload' && scanFiles.length === 0 && referenceImages.length === 0 ? (
                     <div className="text-sm text-gray-500 italic">No files selected.</div>
                   ) : (
                     <div className="space-y-4">
+                      {uploadMethod === 'Link' && links.filter(l => l.trim() !== '').map((l, i) => (
+                        <div key={'link'+i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
+                          <div className="flex items-center w-full">
+                            <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4 shrink-0">
+                              <FiLink className="text-gray-400 text-xl" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-bold text-gray-900 truncate pr-4">{l}</div>
+                              <div className="text-xs text-gray-500">Cloud/Drive Link</div>
+                            </div>
+                          </div>
+                          <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                            <FaCheck className="text-blue-500 text-[10px]" />
+                          </div>
+                        </div>
+                      ))}
                       {scanFiles.map((f, i) => (
                         <div key={i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4">
-                              <span className="text-gray-400 text-xl">📄</span>
+                              <FiFileText className="text-gray-400 text-xl" />
                             </div>
                             <div>
                               <div className="text-sm font-bold text-gray-900">{f.name}</div>
@@ -743,7 +774,7 @@ export default function NewProject() {
                         <div key={'ref'+i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4">
-                              <span className="text-gray-400 text-xl">📄</span>
+                              <FiFileText className="text-gray-400 text-xl" />
                             </div>
                             <div>
                               <div className="text-sm font-bold text-gray-900">{f.name}</div>
@@ -764,7 +795,7 @@ export default function NewProject() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-0 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                   <div className="flex items-center text-gray-900 font-bold">
-                    <span className="text-gray-500 mr-2 text-lg">📦</span>
+                    <FiBox className="text-gray-500 mr-2 text-lg" />
                     Selected Deliverables
                   </div>
                   <button onClick={() => setCurrentStep(3)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Modify</button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiFolder, FiActivity, FiCheck, FiClock, FiChevronRight, FiMoreVertical, FiDownload, FiStar, FiUpload, FiFileText, FiUsers, FiSearch, FiGrid, FiMenu } from 'react-icons/fi';
+import { FiPlus, FiFolder, FiActivity, FiCheck, FiClock, FiChevronRight, FiMoreVertical, FiDownload, FiStar, FiUpload, FiFileText, FiUsers, FiSearch, FiGrid, FiMenu, FiBox } from 'react-icons/fi';
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -244,9 +244,9 @@ export default function Projects() {
                         {/* Thumbnail */}
                         <div className="w-[120px] h-[120px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative">
                           {project.scanFiles && project.scanFiles.length > 0 ? (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">📄</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl"><FiFileText /></div>
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">📦</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl"><FiBox /></div>
                           )}
                         </div>
                         
@@ -356,11 +356,21 @@ export default function Projects() {
                     <div className="border-t border-gray-100 bg-gray-50/50 mt-auto flex flex-col">
                       {isDelivered ? (
                         <>
-                          <button className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100">
+                          <button 
+                            onClick={() => {
+                              if (project.completedFiles && project.completedFiles.length > 0) {
+                                window.open(`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${project.completedFiles[0].filename}`, '_blank');
+                              } else {
+                                navigate(`/dashboard/projects/${project._id}`);
+                              }
+                            }}
+                            className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100">
                             Download CAD
                             <FiDownload className="text-[#10b981] text-base" />
                           </button>
-                          <button className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                          <button 
+                            onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                            className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                             View Report
                             <FiFileText className="text-gray-400 text-base" />
                           </button>
@@ -387,9 +397,9 @@ export default function Projects() {
                         {/* Thumbnail */}
                         <div className="w-[140px] h-[140px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative">
                           {project.scanFiles && project.scanFiles.length > 0 ? (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">📄</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl"><FiFileText /></div>
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">📦</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl"><FiBox /></div>
                           )}
                         </div>
                         
@@ -450,10 +460,20 @@ export default function Projects() {
                       <div className="flex flex-col sm:flex-row gap-4 mt-auto">
                         {isDelivered ? (
                           <>
-                            <button className="bg-[#10b981] hover:bg-emerald-600 text-white font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
+                            <button 
+                              onClick={() => {
+                                if (project.completedFiles && project.completedFiles.length > 0) {
+                                  window.open(`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${project.completedFiles[0].filename}`, '_blank');
+                                } else {
+                                  navigate(`/dashboard/projects/${project._id}`);
+                                }
+                              }}
+                              className="bg-[#10b981] hover:bg-emerald-600 text-white font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
                               <FiDownload /> Download CAD
                             </button>
-                            <button className="bg-white border border-gray-200 hover:border-[#10b981] hover:text-[#10b981] text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
+                            <button 
+                              onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                              className="bg-white border border-gray-200 hover:border-[#10b981] hover:text-[#10b981] text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
                               <FiFileText /> View Report
                             </button>
                           </>

@@ -1,12 +1,52 @@
-import React, { useState } from 'react';
-import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
+import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown, FiClock } from 'react-icons/fi';
 import { BiHistory, BiReceipt } from 'react-icons/bi';
 import { HiOutlineDocumentText } from 'react-icons/hi';
 
 export default function Billing() {
+  const { user, openBuyHoursModal } = useOutletContext();
   const [activeTab, setActiveTab] = useState('Overview');
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/projects`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setProjects(data);
+        }
+      } catch (err) {
+        console.error('Error fetching projects', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   const tabs = ['Overview', 'CAD Usage History', 'Invoice History'];
+
+  // Calculations
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  
+  const thisMonthProjects = projects.filter(p => {
+    const d = new Date(p.createdAt);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const thisMonthHours = thisMonthProjects.reduce((sum, p) => sum + (p.billableHours || p.estimatedHours || 0) + (p.freeHoursApplied || 0), 0);
+  
+  const freeHoursRemaining = user?.freeHoursRemaining || 0;
+  const freeHoursUsed = projects.reduce((sum, p) => sum + (p.freeHoursApplied || 0), 0);
+  const maxFreeHours = freeHoursRemaining + freeHoursUsed;
+  const freeHoursPercent = maxFreeHours === 0 ? 0 : Math.min(100, (freeHoursUsed / maxFreeHours) * 100);
 
   return (
     <div className="max-w-8xl mx-auto pb-12">
@@ -14,9 +54,8 @@ export default function Billing() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <h1 className="text-3xl font-bold text-[#1e293b]">CAD wallet & Billing</h1>
         
-        {/* Only show Buy CAD Hours if not on Overview (based on screenshots), or always show. Let's always show it, or strictly match screenshot. Screenshot 1 lacks it, 2 & 3 have it. I'll show it conditionally just in case, but it's likely meant to be there always. Let's just put it. */}
         {activeTab !== 'Overview' && (
-          <button className="bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-md shadow-sm transition-colors flex items-center shrink-0 w-max text-sm">
+          <button onClick={openBuyHoursModal} className="bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-md shadow-sm transition-colors flex items-center shrink-0 w-max text-sm">
             <span className="mr-1 text-lg font-normal">+</span> Buy CAD Hours
           </button>
         )}
@@ -50,7 +89,7 @@ export default function Billing() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">This Month's CAD Hours Usage</h3>
               <div className="flex items-baseline space-x-1">
-                <span className="text-4xl font-bold text-[#3b82f6]">0</span>
+                <span className="text-4xl font-bold text-[#3b82f6]">{thisMonthHours}</span>
                 <span className="text-sm font-semibold text-gray-500">hrs</span>
               </div>
             </div>
@@ -58,10 +97,10 @@ export default function Billing() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Free Hours Used</h3>
-                <span className="text-[13px] font-bold text-[#3b82f6]">0/10 hrs</span>
+                <span className="text-[13px] font-bold text-[#3b82f6]">{freeHoursUsed}/{maxFreeHours} hrs</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-1.5 mt-auto">
-                <div className="bg-[#3b82f6] h-1.5 rounded-full" style={{ width: '0%' }}></div>
+                <div className="bg-[#3b82f6] h-1.5 rounded-full transition-all duration-500" style={{ width: `${freeHoursPercent}%` }}></div>
               </div>
             </div>
 
@@ -153,14 +192,54 @@ export default function Billing() {
             </div>
           </div>
 
-          {/* Empty State */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 py-32 flex flex-col items-center justify-center text-center">
-            <BiHistory className="text-5xl text-[#3b82f6] mb-5" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">No usage history yet</h2>
-            <p className="text-sm text-gray-500 max-w-sm leading-relaxed">
-              Start your first Scan-to-CAD project to see your hourly credits in action.
-            </p>
-          </div>
+          {/* Empty State or Table */}
+          {loading ? (
+             <div className="py-20 text-center text-gray-400">Loading history...</div>
+          ) : projects.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 py-32 flex flex-col items-center justify-center text-center">
+              <BiHistory className="text-5xl text-[#3b82f6] mb-5" />
+              <h2 className="text-xl font-bold text-gray-900 mb-2">No usage history yet</h2>
+              <p className="text-sm text-gray-500 max-w-sm leading-relaxed">
+                Start your first Scan-to-CAD project to see your hourly credits in action.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                    <th className="py-4 px-6">Project</th>
+                    <th className="py-4 px-6">Date</th>
+                    <th className="py-4 px-6 text-center">Hours Used</th>
+                    <th className="py-4 px-6 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {projects.map((project) => (
+                    <tr key={project._id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-6">
+                        <Link to={`/dashboard/projects/${project._id}`} className="text-sm font-bold text-gray-900 hover:text-blue-600">
+                          {project.title}
+                        </Link>
+                        <div className="text-xs text-gray-500 mt-1 uppercase">ID: {project._id.substring(project._id.length - 8)}</div>
+                      </td>
+                      <td className="py-4 px-6 text-sm text-gray-500">
+                        {new Date(project.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="py-4 px-6 text-center text-sm font-bold text-gray-700">
+                        {(project.billableHours || project.estimatedHours || 0) + (project.freeHoursApplied || 0)} hrs
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <span className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                          {project.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

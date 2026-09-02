@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { BiPlus, BiEdit, BiTrash, BiHistory, BiMoney } from 'react-icons/bi';
+import { FiX } from 'react-icons/fi';
 
 export default function AdminConfigurations() {
   const [rates, setRates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingRate, setEditingRate] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
   
   // Modal Form State
   const [formData, setFormData] = useState({
@@ -69,8 +74,11 @@ export default function AdminConfigurations() {
     }
   };
 
+  const confirmDelete = (id) => {
+    setDeleteConfirm(id);
+  };
+
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this rate?')) return;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/rates/${id}`, {
@@ -78,6 +86,7 @@ export default function AdminConfigurations() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
+        setDeleteConfirm(null);
         fetchRates();
       }
     } catch (err) {
@@ -95,8 +104,19 @@ export default function AdminConfigurations() {
     setShowModal(true);
   };
 
+  const filteredRates = rates.filter(rate => {
+    if (filter === 'Active Only' && !rate.isActive) return false;
+    
+    if (search) {
+      const s = search.toLowerCase();
+      return rate.country.toLowerCase().includes(s);
+    }
+    
+    return true;
+  });
+
   return (
-    <div className="max-w-6xl mx-auto pb-12 font-sans">
+    <div className="max-w-8xl mx-auto pb-12 font-sans">
       <div className="mb-8 flex items-center gap-3">
         <BiMoney className="text-3xl text-blue-600" />
         <div>
@@ -114,12 +134,22 @@ export default function AdminConfigurations() {
           </div>
           <div className="flex gap-4">
             <div className="relative">
-              <input type="text" placeholder="Search rates..." className="pl-8 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-48 focus:outline-none focus:border-blue-500" />
+              <input 
+                type="text" 
+                placeholder="Search rates..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-48 focus:outline-none focus:border-blue-500" 
+              />
               <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
-            <select className="border border-gray-200 rounded-lg text-sm px-3 py-2 bg-white outline-none">
-              <option>All</option>
-              <option>Active Only</option>
+            <select 
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg text-sm px-3 py-2 bg-white outline-none"
+            >
+              <option value="All">All</option>
+              <option value="Active Only">Active Only</option>
             </select>
             <button 
               onClick={() => {
@@ -151,16 +181,15 @@ export default function AdminConfigurations() {
                 <tr>
                   <td colSpan="5" className="py-8 text-center text-gray-400">Loading rates...</td>
                 </tr>
-              ) : rates.length === 0 ? (
+              ) : filteredRates.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-8 text-center text-gray-400">No rates configured yet.</td>
+                  <td colSpan="5" className="py-8 text-center text-gray-400">No rates found.</td>
                 </tr>
               ) : (
-                rates.map((rate) => (
+                filteredRates.map((rate) => (
                   <tr key={rate._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-400">🌎</span>
                         <span className="text-sm font-semibold text-gray-800">{rate.country}</span>
                       </div>
                     </td>
@@ -181,7 +210,7 @@ export default function AdminConfigurations() {
                       <button onClick={() => openEditModal(rate)} className="text-blue-500 hover:text-blue-700 flex items-center gap-1 text-xs font-semibold">
                         <BiEdit /> Edit
                       </button>
-                      <button onClick={() => handleDelete(rate._id)} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs font-semibold">
+                      <button onClick={() => confirmDelete(rate._id)} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs font-semibold">
                         <BiTrash />
                       </button>
                     </td>
@@ -249,10 +278,39 @@ export default function AdminConfigurations() {
                   <BiEdit /> {editingRate ? 'Update' : 'Create'}
                 </button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg transition-colors flex justify-center items-center gap-2">
-                  <span className="text-xl">×</span> Cancel
+                  <FiX className="text-xl" /> Cancel
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BiTrash className="text-3xl text-red-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Delete Rate</h2>
+              <p className="text-sm text-gray-500 mb-6">Are you sure you want to delete this rate? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirm(null)} 
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleDelete(deleteConfirm)} 
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-sm shadow-red-500/30"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

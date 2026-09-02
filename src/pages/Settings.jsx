@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiMail, FiMonitor, FiInfo, FiSave } from 'react-icons/fi';
+import { useOutletContext } from 'react-router-dom';
+import axios from 'axios';
 
 const Toggle = ({ checked, onChange }) => (
   <button 
@@ -31,6 +33,9 @@ export default function Settings() {
     security: true,
   });
 
+  const { user } = useOutletContext();
+  const [isSaving, setIsSaving] = useState(false);
+
   const [platformPrefs, setPlatformPrefs] = useState({
     newQuotes: true,
     projectStatus: true,
@@ -38,6 +43,29 @@ export default function Settings() {
     fileDelivery: true,
     invoiceGen: true,
   });
+
+  useEffect(() => {
+    if (user?.notificationPreferences) {
+      setPlatformPrefs({ ...platformPrefs, ...user.notificationPreferences });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${import.meta.env.VITE_API_URL}/auth/preferences`, 
+        { platformPrefs }, 
+        { headers: { 'x-auth-token': token } }
+      );
+      alert('Preferences saved successfully!');
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      alert('Failed to save preferences.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl pb-16">
@@ -131,9 +159,12 @@ export default function Settings() {
           <button className="text-gray-500 font-bold text-sm hover:text-gray-300 transition-colors">
             Discard changes
           </button>
-          <button className="bg-[#3b82f6] hover:bg-blue-600 text-white font-bold py-2.5 px-6 rounded-md shadow-sm transition-colors flex items-center text-sm">
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`text-white font-bold py-2.5 px-6 rounded-md shadow-sm transition-colors flex items-center text-sm ${isSaving ? 'bg-blue-400' : 'bg-[#3b82f6] hover:bg-blue-600'}`}>
             <FiSave className="mr-2 text-lg" />
-            Save Changes
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
 

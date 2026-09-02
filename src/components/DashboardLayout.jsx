@@ -4,6 +4,8 @@ import axios from 'axios';
 import { BiHomeAlt, BiFile, BiFolder, BiCreditCard, BiBell, BiCog, BiSupport, BiHelpCircle } from 'react-icons/bi';
 import { FiPlus } from 'react-icons/fi';
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io';
+import BuyHoursModal from './BuyHoursModal';
+import { useSocket } from '../context/SocketContext';
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -11,6 +13,8 @@ export default function DashboardLayout() {
   const [user, setUser] = useState(null);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isBuyHoursModalOpen, setIsBuyHoursModalOpen] = useState(false);
+  const socket = useSocket();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -53,10 +57,22 @@ export default function DashboardLayout() {
     fetchUser();
     fetchNotifications();
 
-    // Optional: Poll for notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [navigate]);
+    if (socket) {
+      socket.on('newNotification', fetchNotifications);
+      socket.on('notificationsUpdated', fetchNotifications);
+      return () => {
+        socket.off('newNotification', fetchNotifications);
+        socket.off('notificationsUpdated', fetchNotifications);
+      };
+    }
+  }, [navigate, socket]);
+
+  // Join room when user is loaded and socket connects
+  useEffect(() => {
+    if (socket && user) {
+      socket.emit('joinRoom', user._id);
+    }
+  }, [socket, user]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -181,8 +197,10 @@ export default function DashboardLayout() {
             >
               <div className="text-xl shrink-0">{item.icon}</div>
               {isSidebarOpen && <span className="ml-3 text-sm flex-1">{item.name}</span>}
-              {item.name === 'Notifications' && isSidebarOpen && (
-                <div className="w-2 h-2 rounded-full bg-orange-400"></div>
+              {item.name === 'Notifications' && isSidebarOpen && unreadCount > 0 && (
+                <div className="w-5 h-5 flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold ml-auto">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </div>
               )}
             </NavLink>
           ))}
@@ -205,10 +223,16 @@ export default function DashboardLayout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-[#f4f6f8] p-8">
-          <Outlet context={{ user }} />
+          <Outlet context={{ user, openBuyHoursModal: () => setIsBuyHoursModalOpen(true) }} />
         </main>
       </div>
       </div>
+
+      {/* Buy Hours Modal */}
+      <BuyHoursModal 
+        isOpen={isBuyHoursModalOpen} 
+        onClose={() => setIsBuyHoursModalOpen(false)} 
+      />
     </div>
   );
 }

@@ -15,12 +15,19 @@ import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminQuoteDetails from './pages/AdminQuoteDetails';
 import AdminConfigurations from './pages/AdminConfigurations';
+import AdminCustomers from './pages/AdminCustomers';
+import AdminCustomerDetails from './pages/AdminCustomerDetails';
+
+import { SocketProvider } from './context/SocketContext';
+import ScrollToTop from './components/ScrollToTop';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+    <SocketProvider>
+      <Router>
+        <ScrollToTop />
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
         
@@ -29,7 +36,8 @@ function App() {
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="quotes/:id" element={<AdminQuoteDetails />} />
-          <Route path="customers" element={<div className="p-8">Customers Page (Coming Soon)</div>} />
+          <Route path="customers" element={<AdminCustomers />} />
+          <Route path="customers/:id" element={<AdminCustomerDetails />} />
           <Route path="configurations" element={<AdminConfigurations />} />
         </Route>
 
@@ -47,7 +55,8 @@ function App() {
           <Route path="new-project" element={<NewProject />} />
         </Route>
       </Routes>
-    </Router>
+      </Router>
+    </SocketProvider>
   );
 }
 

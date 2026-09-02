@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BiDownload, BiUpload, BiLinkAlt } from 'react-icons/bi';
+import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import StlViewer from '../components/StlViewer';
+import { useSocket } from '../context/SocketContext';
 
 export default function AdminQuoteDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const socket = useSocket();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -15,6 +18,7 @@ export default function AdminQuoteDetails() {
   const [quotationFile, setQuotationFile] = useState(null);
   const fileInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // Completed files upload state
   const [selectedCompletedFiles, setSelectedCompletedFiles] = useState({});
@@ -49,7 +53,21 @@ export default function AdminQuoteDetails() {
     };
     
     fetchProject();
-  }, [id, navigate]);
+    
+    if (socket) {
+      const handleProjectUpdate = (updatedProject) => {
+        if (updatedProject._id === id) {
+          fetchProject();
+        }
+      };
+      
+      socket.on('projectUpdated', handleProjectUpdate);
+      
+      return () => {
+        socket.off('projectUpdated', handleProjectUpdate);
+      };
+    }
+  }, [id, navigate, socket]);
 
   const handleHourChange = (idx, delta) => {
     setEstimatedHours(prev => ({
@@ -90,6 +108,9 @@ export default function AdminQuoteDetails() {
       const formData = new FormData();
       formData.append('status', 'Quote Ready');
       formData.append('estimatedHours', totalHours);
+      const totalItemsCount = (project.scanFiles?.length || 0) + (project.links?.length || 0);
+      const hoursArray = Array.from({ length: totalItemsCount }).map((_, i) => estimatedHours[i] || 0);
+      formData.append('fileEstimatedHours', JSON.stringify(hoursArray));
       formData.append('freeHoursApplied', freeHoursApplied);
       formData.append('billableHours', billableHours);
       
@@ -175,7 +196,8 @@ export default function AdminQuoteDetails() {
         setProject(updatedProject);
         setSelectedCompletedFiles({});
         setSelectedInvoice(null);
-        alert('Files uploaded successfully');
+        setToast({ type: 'success', message: 'Files uploaded successfully!' });
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (err) {
       console.error('Error uploading completed files:', err);
@@ -199,6 +221,9 @@ export default function AdminQuoteDetails() {
 
   const renderFooter = () => {
     if (project.status === 'Pending Quote' || project.status === 'Revision Requested') {
+      const totalItemsCount = (project.scanFiles?.length || 0) + (project.links?.length || 0);
+      const allItemsHaveHours = totalItemsCount === 0 || Array.from({ length: totalItemsCount }).every((_, i) => estimatedHours[i] && estimatedHours[i] >= 1);
+
       return (
         <div className="bg-[#f4f8ff] rounded-xl border border-blue-100 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -210,15 +235,15 @@ export default function AdminQuoteDetails() {
               )}
               <p className="text-sm font-bold text-gray-800 mt-1">Billable Hours: <span className="text-blue-600 text-lg">{billableHours}</span></p>
             </div>
-            {totalHours === 0 && (
-              <p className="text-xs text-red-500 mt-2 font-medium">Please estimate at least 1 hour before submitting.</p>
+            {!allItemsHaveHours && (
+              <p className="text-xs text-red-500 mt-2 font-medium">Please estimate at least 1 hour for each file/link before submitting.</p>
             )}
           </div>
           <button 
             onClick={submitQuote} 
-            disabled={submitting || totalHours === 0}
+            disabled={submitting || !allItemsHaveHours || totalHours === 0}
             className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit ${
-              submitting || totalHours === 0
+              submitting || !allItemsHaveHours || totalHours === 0
                 ? 'bg-blue-300 text-white cursor-not-allowed'
                 : 'bg-[#3b82f6] text-white hover:bg-blue-600'
             }`}
@@ -249,7 +274,7 @@ export default function AdminQuoteDetails() {
             
             {project.poFile ? (
               <div className="bg-white rounded-lg p-3 border border-green-100 inline-flex items-center gap-3 shadow-sm">
-                <div className="w-8 h-8 bg-green-100 text-green-600 rounded flex items-center justify-center text-lg">📄</div>
+                <div className="w-8 h-8 bg-green-100 text-green-600 rounded flex items-center justify-center text-lg"><FiFileText /></div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Purchase Order Attached</p>
                   <button 
@@ -262,7 +287,7 @@ export default function AdminQuoteDetails() {
               </div>
             ) : (
               <div className="bg-white rounded-lg p-3 border border-green-100 inline-flex items-center gap-3 shadow-sm">
-                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-lg">💳</div>
+                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-lg"><FiCreditCard /></div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Payment Method</p>
                   <p className="text-xs font-bold text-gray-700">Instant Payment Authorized</p>
@@ -367,11 +392,23 @@ export default function AdminQuoteDetails() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto pb-12 font-sans">
+    <div className="max-w-[1400px] mx-auto pb-12 font-sans relative">
       
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-8 right-8 z-50 animate-[fade-in-up_0.3s_ease-out]">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border ${
+            toast.type === 'success' ? 'bg-gray-900 border-gray-800 text-white' : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            {toast.type === 'success' ? <FiCheckCircle className="text-xl text-blue-400" /> : <FiAlertCircle className="text-xl text-red-600" />}
+            <span className="font-semibold">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-[#8b3dff] rounded-t-xl px-8 py-6 text-white mb-6 relative">
-        <button onClick={() => navigate('/admin/dashboard')} className="absolute right-4 top-4 text-white/70 hover:text-white">✕</button>
+        <button onClick={() => navigate('/admin/dashboard')} className="absolute right-4 top-4 text-white/70 hover:text-white"><FiX /></button>
         <h1 className="text-2xl font-bold mb-3">{project.title}</h1>
         <div className="flex items-center gap-3 text-sm">
           <span className="bg-[#fff8ea] text-[#d97706] text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded">
@@ -410,7 +447,7 @@ export default function AdminQuoteDetails() {
         {/* Customer Information Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="text-blue-500">👤</span> Customer Information
+            <span className="text-blue-500"><FiUser /></span> Customer Information
           </h2>
           <div className="space-y-4">
             <div>
@@ -445,17 +482,58 @@ export default function AdminQuoteDetails() {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="py-3 text-[10px] font-bold text-gray-400 uppercase">#</th>
-                  <th className="py-3 text-[10px] font-bold text-gray-400 uppercase">File Name</th>
+                  <th className="py-3 text-[10px] font-bold text-gray-400 uppercase">File/Link Name</th>
                   <th className="py-3 text-[10px] font-bold text-gray-400 uppercase text-center">Estimated Hours</th>
                   <th className="py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {project.scanFiles?.map((file, idx) => (
-                  <tr key={idx}>
+                {project.links?.map((link, idx) => (
+                  <tr key={`link-${idx}`}>
                     <td className="py-3">
                       <div className="w-6 h-6 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
                         {idx + 1}
+                      </div>
+                    </td>
+                    <td className="py-3 text-xs text-gray-700 font-medium truncate max-w-[200px]">
+                      <div className="flex items-center gap-2">
+                        <FiLink className="text-gray-400 text-lg flex-shrink-0" />
+                        <span className="truncate">{link}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-center">
+                      <div className="inline-flex items-center gap-2">
+                        <button 
+                          onClick={() => handleHourChange(`link-${idx}`, -1)} 
+                          disabled={project.status !== 'Pending Quote' && project.status !== 'Revision Requested'}
+                          className="w-6 h-6 flex items-center justify-center border border-orange-200 text-orange-500 rounded hover:bg-orange-50 disabled:opacity-50"
+                        >-</button>
+                        <span className="w-6 text-xs font-bold text-gray-700 text-center">{estimatedHours[`link-${idx}`] || 0}</span>
+                        <button 
+                          onClick={() => handleHourChange(`link-${idx}`, 1)} 
+                          disabled={project.status !== 'Pending Quote' && project.status !== 'Revision Requested'}
+                          className="w-6 h-6 flex items-center justify-center border border-orange-200 text-orange-500 rounded hover:bg-orange-50 disabled:opacity-50"
+                        >+</button>
+                      </div>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <a 
+                          href={link.startsWith('http') ? link : `https://${link}`}
+                          target="_blank" rel="noreferrer"
+                          className="text-[11px] font-semibold text-blue-500 hover:underline"
+                        >
+                          Open Link
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {project.scanFiles?.map((file, idx) => (
+                  <tr key={`file-${idx}`}>
+                    <td className="py-3">
+                      <div className="w-6 h-6 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
+                        {(project.links?.length || 0) + idx + 1}
                       </div>
                     </td>
                     <td className="py-3 text-xs text-gray-700 font-medium truncate max-w-[150px]">
@@ -541,7 +619,7 @@ export default function AdminQuoteDetails() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-gray-400">
-              <div className="text-4xl mb-2">📄</div>
+              <div className="text-4xl mb-2 flex items-center justify-center"><FiFileText /></div>
               <p className="text-sm font-medium">Select a file to preview 3D model</p>
             </div>
           )}

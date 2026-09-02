@@ -2,20 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   FiArrowLeft, FiFileText, FiMail, FiCheck, FiUser, FiDownload, 
-  FiSettings, FiClock, FiAlertTriangle, FiSend, FiZoomIn, FiRotateCw, FiX
+  FiSettings, FiClock, FiAlertTriangle, FiSend, FiZoomIn, FiRotateCw, FiX,
+  FiLink
 } from 'react-icons/fi';
 import { BiScan } from 'react-icons/bi';
 import StlViewer from '../components/StlViewer';
 import ApprovalModal from '../components/ApprovalModal';
 import RevisionModal from '../components/RevisionModal';
+import { useSocket } from '../context/SocketContext';
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const socket = useSocket();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
   const [issueText, setIssueText] = useState('');
+  const [selectedStlIndex, setSelectedStlIndex] = useState(0);
 
   // Modals state
   const [isApprovalModalOpen, setApprovalModalOpen] = useState(false);
@@ -45,7 +50,21 @@ export default function ProjectDetails() {
     };
     
     fetchProject();
-  }, [id, navigate]);
+    
+    if (socket) {
+      const handleProjectUpdate = (updatedProject) => {
+        if (updatedProject._id === id) {
+          fetchProject();
+        }
+      };
+      
+      socket.on('projectUpdated', handleProjectUpdate);
+      
+      return () => {
+        socket.off('projectUpdated', handleProjectUpdate);
+      };
+    }
+  }, [id, navigate, socket]);
 
   if (loading) {
     return (
@@ -94,7 +113,8 @@ export default function ProjectDetails() {
   
   const timeline = history.filter((h, idx, arr) => idx === 0 || h.status !== arr[idx-1].status);
 
-  const stlFile = project.scanFiles?.find(f => f.originalname.toLowerCase().endsWith('.stl') || f.filename.toLowerCase().endsWith('.stl'));
+  const stlFiles = project.scanFiles?.filter(f => f.originalname.toLowerCase().endsWith('.stl') || f.filename.toLowerCase().endsWith('.stl')) || [];
+  const stlFile = stlFiles[selectedStlIndex] || stlFiles[0];
   const baseUrl = import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
   const stlUrl = stlFile ? `${baseUrl}/uploads/${stlFile.filename}` : null;
 
@@ -150,6 +170,27 @@ export default function ProjectDetails() {
     console.log("Revision requested:", data);
     setRevisionModalOpen(false);
     await updateProjectStatus('Revision Requested');
+  };
+
+  const handleInvoicePayment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${project._id}/pay`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProject(data.project);
+      } else {
+        alert('Payment recording failed, please contact support.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error recording payment');
+    }
   };
 
 
@@ -272,6 +313,34 @@ export default function ProjectDetails() {
               </div>
             </div>
 
+            {project.links && project.links.length > 0 && (
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
+                <h2 className="text-xl font-bold text-[#1e293b] mb-6">Submitted Links</h2>
+                <div className="space-y-4">
+                  {project.links.map((link, idx) => (
+                    <div key={`plink-${idx}`} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
+                      <div className="flex items-center w-full min-w-0">
+                        <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4 shrink-0">
+                          <FiLink className="text-gray-400 text-xl" />
+                        </div>
+                        <div className="min-w-0 flex-1 pr-4">
+                          <div className="text-sm font-bold text-gray-900 truncate">{link}</div>
+                          <div className="text-xs text-gray-500">Cloud/Drive Link</div>
+                        </div>
+                      </div>
+                      <a 
+                        href={link.startsWith('http') ? link : `https://${link}`}
+                        target="_blank" rel="noreferrer"
+                        className="bg-blue-50 text-blue-500 hover:bg-blue-100 px-4 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap shrink-0"
+                      >
+                        Open Link
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[500px]">
               <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
                 <span className="text-xs font-bold text-blue-500">CAD Reference Model</span>
@@ -291,6 +360,48 @@ export default function ProjectDetails() {
 
           {/* Right Column */}
           <div className="lg:w-[320px] flex flex-col gap-6">
+            {stlFiles.length > 1 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-5 border-b border-gray-100">
+                  <h2 className="text-lg font-bold text-[#1e293b]">Available Files</h2>
+                  <p className="text-xs text-gray-500 mt-1">Select a file to preview</p>
+                </div>
+                <div className="flex flex-col p-4 gap-2 max-h-[360px] overflow-y-auto">
+                  {stlFiles.map((file, idx) => {
+                    const originalIdx = project.scanFiles ? project.scanFiles.findIndex(f => f.filename === file.filename) : -1;
+                    const fileHours = originalIdx >= 0 && project.fileEstimatedHours && project.fileEstimatedHours.length > originalIdx 
+                      ? project.fileEstimatedHours[originalIdx] 
+                      : (project.estimatedHours ? Math.floor(project.estimatedHours / ((project.scanFiles?.length || 0) + (project.links?.length || 0))) : 'TBD');
+
+                    return (
+                      <button 
+                        key={idx}
+                        onClick={() => setSelectedStlIndex(idx)}
+                        className={`text-left p-3.5 rounded-lg text-sm font-semibold transition-all border shadow-sm flex items-start gap-3 ${
+                          selectedStlIndex === idx 
+                            ? 'bg-blue-50/50 border-blue-200 text-blue-700' 
+                            : 'bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-200 text-gray-600'
+                        }`}
+                      >
+                        <FiFileText className={`shrink-0 mt-0.5 ${selectedStlIndex === idx ? 'text-blue-500' : 'text-gray-400'}`} size={18} />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="truncate leading-tight w-full">{file.originalname}</span>
+                          {fileHours !== 'TBD' && (
+                            <div className="mt-1.5">
+                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded ${
+                                selectedStlIndex === idx ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {fileHours} hr{fileHours !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-lg font-bold text-[#1e293b] mb-6">Project Activity</h2>
               <div className="relative pl-3">
@@ -548,22 +659,49 @@ export default function ProjectDetails() {
                   <FiFileText size={16} className="text-gray-500" />
                   Original Files
                 </div>
-                {project.scanFiles && project.scanFiles.length > 0 ? (
+                {(project.scanFiles?.length > 0 || project.links?.length > 0) ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase">#</th>
-                          <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase">File Name</th>
+                          <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase">File/Link Name</th>
                           <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase text-center">Required Hours</th>
                           <th className="py-3 px-6 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {project.scanFiles.map((file, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                        {project.links?.map((link, idx) => (
+                          <tr key={`link-${idx}`} className="hover:bg-gray-50 transition-colors">
                             <td className="py-4 px-6 text-sm font-medium text-gray-800">
                               {idx + 1}
+                            </td>
+                            <td className="py-4 px-6 text-sm font-medium text-gray-800">
+                              <div className="flex items-center gap-2">
+                                <FiLink className="text-gray-400 text-lg flex-shrink-0" />
+                                <span className="truncate max-w-[200px] xl:max-w-[300px] block">{link}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6 text-sm font-bold text-gray-900 text-center">
+                              {project.fileEstimatedHours && project.fileEstimatedHours.length > ((project.scanFiles?.length || 0) + idx) 
+                                ? project.fileEstimatedHours[(project.scanFiles?.length || 0) + idx]
+                                : (project.estimatedHours ? Math.floor(project.estimatedHours / ((project.scanFiles?.length || 0) + (project.links?.length || 0))) : 'TBD')} hrs
+                            </td>
+                            <td className="py-4 px-6 text-right">
+                              <a 
+                                href={link.startsWith('http') ? link : `https://${link}`}
+                                target="_blank" rel="noreferrer"
+                                className="w-[100px] inline-flex items-center justify-center bg-[#3b82f6] text-white hover:bg-blue-600 px-3 py-1.5 rounded text-xs font-bold transition-colors"
+                              >
+                                Open Link
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                        {project.scanFiles?.map((file, idx) => (
+                          <tr key={`file-${idx}`} className="hover:bg-gray-50 transition-colors">
+                            <td className="py-4 px-6 text-sm font-medium text-gray-800">
+                              {(project.links?.length || 0) + idx + 1}
                             </td>
                             <td className="py-4 px-6 text-sm font-medium text-gray-800">
                               <div className="flex items-center gap-2">
@@ -572,7 +710,9 @@ export default function ProjectDetails() {
                               </div>
                             </td>
                             <td className="py-4 px-6 text-sm font-bold text-gray-900 text-center">
-                              {project.estimatedHours || 5}
+                              {project.fileEstimatedHours && project.fileEstimatedHours.length > idx 
+                                ? project.fileEstimatedHours[idx]
+                                : (project.estimatedHours ? Math.floor(project.estimatedHours / ((project.scanFiles?.length || 0) + (project.links?.length || 0))) : 'TBD')} hrs
                             </td>
                             <td className="py-4 px-6 text-right space-y-2">
                               <button 
@@ -600,7 +740,7 @@ export default function ProjectDetails() {
                   <div className="p-12 flex flex-col items-center justify-center text-center">
                     <FiFileText size={48} className="text-gray-300 mb-4" />
                     <h3 className="text-lg font-bold text-gray-900 mb-2">No original files</h3>
-                    <p className="text-sm text-gray-500">No original scan files were found.</p>
+                    <p className="text-sm text-gray-500">No original scan files or links were found.</p>
                   </div>
                 )}
               </div>
@@ -864,12 +1004,38 @@ export default function ProjectDetails() {
             </div>
 
             {/* Pay Now block */}
-            {project.billableHours > 0 && (
+            {project.billableHours > 0 && project.poFile && (
               <div className="bg-[#1e1e1e] rounded-xl shadow-lg p-6 flex flex-col items-center">
                 <p className="text-xs text-gray-400 font-medium mb-4">Pay your invoice amount here.</p>
-                <button className="w-full bg-[#3b82f6] hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg text-lg transition-colors shadow-sm">
-                  Pay Now
-                </button>
+                <div className="w-full relative z-10 min-h-[48px]">
+                  <PayPalScriptProvider options={{ "client-id": "test", currency: "USD" }}>
+                    <PayPalButtons
+                      style={{ layout: "vertical", shape: "rect", height: 48, label: "pay" }}
+                      createOrder={(data, actions) => {
+                        const totalCost = (project.billableHours || 0) * 50;
+                        return actions.order.create({
+                          purchase_units: [
+                            {
+                              description: `Project Invoice ${shortId}`,
+                              amount: {
+                                value: totalCost.toFixed(2),
+                              },
+                            },
+                          ],
+                        });
+                      }}
+                      onApprove={(data, actions) => {
+                        return actions.order.capture().then((details) => {
+                          handleInvoicePayment();
+                        });
+                      }}
+                      onError={(err) => {
+                        console.error("PayPal Checkout Error:", err);
+                        alert("There was an error processing your payment. Please try again.");
+                      }}
+                    />
+                  </PayPalScriptProvider>
+                </div>
               </div>
             )}
 
