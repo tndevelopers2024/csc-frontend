@@ -35,7 +35,7 @@ export default function Quotations() {
           rawId: p._id,
           projectTitle: p.title,
           projectMeta: `${p.cadOutput || 'CAD'} • ${p.appType || 'Scan'}`,
-          date: new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: new Date(p.createdAt).toLocaleDateString('en-GB'),
           status: p.status,
           hours: p.estimatedHours ? `${p.estimatedHours} hrs` : (p.status === 'Pending Quote' ? '—' : 'TBD'),
           price: p.billableHours !== undefined && p.billableHours > 0 ? `$${p.billableHours * 50}` : (p.billableHours === 0 && p.estimatedHours > 0 ? '$0' : (p.status === 'Pending Quote' ? '—' : 'TBD')),

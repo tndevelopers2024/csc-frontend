@@ -179,7 +179,7 @@ export default function DashboardHome() {
                     {renderStatusTag(project.status)}
                   </div>
                   <p className="text-sm text-gray-500 mb-4">
-                    {project.appType || 'Scan'} output • Submitted {new Date(project.createdAt).toLocaleDateString()}
+                    {project.appType || 'Scan'} output • Submitted {new Date(project.createdAt).toLocaleDateString('en-GB')}
                   </p>
                   
                   {(project.status === 'Completed' || project.status === 'Delivered') ? (

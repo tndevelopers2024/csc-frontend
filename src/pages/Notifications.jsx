@@ -131,9 +131,7 @@ export default function Notifications() {
                       {notification.title}
                     </h3>
                     <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-4">
-                      {new Date(notification.createdAt).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-                      })}
+                      {new Date(notification.createdAt).toLocaleDateString('en-GB')}
                     </span>
                   </div>
                   <p className={`text-sm leading-relaxed ${notification.isRead ? 'text-gray-500' : 'text-gray-700 font-medium'}`}>

@@ -4,6 +4,8 @@ import { BiDownload, BiUpload, BiLinkAlt } from 'react-icons/bi';
 import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import StlViewer from '../components/StlViewer';
 import { useSocket } from '../context/SocketContext';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 export default function AdminQuoteDetails() {
   const { id } = useParams();
@@ -24,6 +26,9 @@ export default function AdminQuoteDetails() {
   const [selectedCompletedFiles, setSelectedCompletedFiles] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
+  // Deadline state for PO verification
+  const [paymentDeadline, setPaymentDeadline] = useState(null);
+
   useEffect(() => {
     const fetchProject = async () => {
       try {
@@ -37,8 +42,12 @@ export default function AdminQuoteDetails() {
           setProject(data);
           
           const initialHours = {};
+          let hourIdx = 0;
+          if (data.links) {
+            data.links.forEach((_, i) => { initialHours[`link-${i}`] = data.fileEstimatedHours?.[hourIdx++] || 0; });
+          }
           if (data.scanFiles) {
-            data.scanFiles.forEach((_, idx) => initialHours[idx] = data.estimatedHours ? Math.floor(data.estimatedHours / data.scanFiles.length) : 0);
+            data.scanFiles.forEach((_, i) => { initialHours[i] = data.fileEstimatedHours?.[hourIdx++] || 0; });
           }
           setEstimatedHours(initialHours);
         } else {
@@ -109,7 +118,10 @@ export default function AdminQuoteDetails() {
       formData.append('status', 'Quote Ready');
       formData.append('estimatedHours', totalHours);
       const totalItemsCount = (project.scanFiles?.length || 0) + (project.links?.length || 0);
-      const hoursArray = Array.from({ length: totalItemsCount }).map((_, i) => estimatedHours[i] || 0);
+      const hoursArray = [
+        ...(project.links || []).map((_, i) => estimatedHours[`link-${i}`] || 0),
+        ...(project.scanFiles || []).map((_, i) => estimatedHours[i] || 0)
+      ];
       formData.append('fileEstimatedHours', JSON.stringify(hoursArray));
       formData.append('freeHoursApplied', freeHoursApplied);
       formData.append('billableHours', billableHours);
@@ -139,11 +151,20 @@ export default function AdminQuoteDetails() {
 
   const updateStatus = async (newStatus) => {
     try {
+      if (newStatus === 'In Progress' && !paymentDeadline) {
+        setToast({ type: 'error', message: 'Please select a payment deadline date before verifying.' });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+
       setSubmitting(true);
       const token = localStorage.getItem('token');
       
       const formData = new FormData();
       formData.append('status', newStatus);
+      if (newStatus === 'In Progress' && paymentDeadline) {
+        formData.append('paymentDeadline', paymentDeadline.toISOString());
+      }
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/projects/${id}`, {
         method: 'PUT',
@@ -216,13 +237,16 @@ export default function AdminQuoteDetails() {
 
   if (!project) return null;
 
-  const createdDate = new Date(project.createdAt).toLocaleDateString('en-US');
+  const createdDate = new Date(project.createdAt).toLocaleDateString('en-GB');
   const customerName = project.userId ? `${project.userId.firstName} ${project.userId.lastName}` : 'Unknown';
 
   const renderFooter = () => {
     if (project.status === 'Pending Quote' || project.status === 'Revision Requested') {
       const totalItemsCount = (project.scanFiles?.length || 0) + (project.links?.length || 0);
-      const allItemsHaveHours = totalItemsCount === 0 || Array.from({ length: totalItemsCount }).every((_, i) => estimatedHours[i] && estimatedHours[i] >= 1);
+      const allItemsHaveHours = totalItemsCount === 0 || [
+        ...(project.links || []).map((_, i) => `link-${i}`),
+        ...(project.scanFiles || []).map((_, i) => i)
+      ].every(key => estimatedHours[key] && estimatedHours[key] >= 1);
 
       return (
         <div className="bg-[#f4f8ff] rounded-xl border border-blue-100 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -297,6 +321,21 @@ export default function AdminQuoteDetails() {
           </div>
           
           <div className="flex flex-col gap-2 min-w-[240px]">
+            <div className="flex flex-col gap-1 mb-2 relative z-50">
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Customer Payment Deadline <span className="text-red-500">*</span></label>
+              <div className="w-full">
+                <DatePicker 
+                  selected={paymentDeadline}
+                  onChange={(date) => setPaymentDeadline(date)}
+                  minDate={new Date()}
+                  placeholderText="dd/mm/yyyy"
+                  dateFormat="dd/MM/yyyy"
+                  className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 bg-white"
+                  wrapperClassName="w-full"
+                />
+              </div>
+            </div>
+            
             <button 
               onClick={() => updateStatus('In Progress')} 
               disabled={submitting}
@@ -353,17 +392,25 @@ export default function AdminQuoteDetails() {
     }
     
     if (project.status === 'QA Review') {
+      const allFilesCompleted = !project.scanFiles || project.scanFiles.length === 0 || project.scanFiles.every((_, idx) => project.completedFiles?.[idx]);
+      const deliverDisabled = submitting || !allFilesCompleted;
+
       return (
-        <div className="bg-purple-50 rounded-xl border border-purple-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold text-purple-800 mb-1">QA Review</h2>
-            <p className="text-xs text-purple-600 font-medium">Project is undergoing quality assurance before final delivery.</p>
+            <h2 className="text-sm font-bold text-blue-800 mb-1">QA Review</h2>
+            <p className="text-xs text-blue-600 font-medium">Project is undergoing quality assurance before final delivery.</p>
+            {!allFilesCompleted && (
+              <p className="text-[11px] text-red-500 font-bold mt-1.5 flex items-center gap-1">
+                <FiAlertCircle /> Please upload all completed files before delivering.
+              </p>
+            )}
           </div>
           <button 
             onClick={() => updateStatus('Delivered')} 
-            disabled={submitting}
-            className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit ${
-              submitting ? 'bg-purple-300 text-white cursor-not-allowed' : 'bg-[#8b3dff] text-white hover:bg-purple-600'
+            disabled={deliverDisabled}
+            className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit shrink-0 ${
+              deliverDisabled ? 'bg-blue-300 text-white cursor-not-allowed opacity-70' : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
             {submitting ? 'Updating...' : 'Deliver to Customer'}
@@ -407,7 +454,7 @@ export default function AdminQuoteDetails() {
       )}
 
       {/* Header Banner */}
-      <div className="bg-[#8b3dff] rounded-t-xl px-8 py-6 text-white mb-6 relative">
+      <div className="bg-blue-600 rounded-t-xl px-8 py-6 text-white mb-6 relative">
         <button onClick={() => navigate('/admin/dashboard')} className="absolute right-4 top-4 text-white/70 hover:text-white"><FiX /></button>
         <h1 className="text-2xl font-bold mb-3">{project.title}</h1>
         <div className="flex items-center gap-3 text-sm">
@@ -441,6 +488,12 @@ export default function AdminQuoteDetails() {
               <p className="text-[11px] font-bold text-gray-400">Use Free Hours?</p>
               <p className="text-sm font-medium text-gray-800">{project.useFreeHours || 'No'}</p>
             </div>
+            {project.paymentDeadline && (
+              <div>
+                <p className="text-[11px] font-bold text-gray-400">Payment Deadline :</p>
+                <p className="text-sm font-bold text-green-600">{new Date(project.paymentDeadline).toLocaleDateString('en-GB')}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -474,7 +527,7 @@ export default function AdminQuoteDetails() {
         {/* Original Files Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-4 border-b border-gray-100 pb-2 inline-block">
-            Original Files ({project.scanFiles?.length || 0})
+            Original Files ({(project.scanFiles?.length || 0) + (project.links?.length || 0)})
           </h2>
           
           <div className="overflow-x-auto mb-6">

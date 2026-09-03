@@ -48,7 +48,7 @@ export default function AdminCustomerDetails() {
   const { user, projects } = data;
   const name = `${user.firstName} ${user.lastName}`;
   const initial = user.firstName ? user.firstName[0].toUpperCase() : 'U';
-  const joinedDate = new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const joinedDate = new Date(user.createdAt).toLocaleDateString('en-GB');
 
   return (
     <div className="max-w-[1400px] mx-auto pb-12 font-sans px-4 pt-4">
@@ -117,7 +117,7 @@ export default function AdminCustomerDetails() {
                         {project.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-500">{new Date(project.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 px-4 text-sm text-gray-500">{new Date(project.createdAt).toLocaleDateString('en-GB')}</td>
                     <td className="py-3 px-4 text-right">
                       <Link to={`/admin/quotes/${project._id}`} className="text-sm text-[#006fee] hover:underline font-medium">View</Link>
                     </td>

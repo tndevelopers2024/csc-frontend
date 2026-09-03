@@ -8,6 +8,8 @@ export default function Projects() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
+  const [filterStatus, setFilterStatus] = useState('All Status');
+  const [filterDeliverable, setFilterDeliverable] = useState('All Deliverables');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +42,34 @@ export default function Projects() {
 
   const activeProjects = projects.filter(p => !['Completed', 'Cancelled', 'Delivered'].includes(p.status)).length;
   const completedProjects = projects.filter(p => ['Completed', 'Delivered'].includes(p.status)).length;
+  
+  const toggleStar = async (projectId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${projectId}/star`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const { project } = await res.json();
+        setProjects(projects.map(p => p._id === projectId ? { ...p, isStarred: project.isStarred } : p));
+      }
+    } catch (err) {
+      console.error('Error toggling star:', err);
+    }
+  };
+
+  const displayedProjects = projects.filter(p => {
+    let statusMatch = true;
+    if (filterStatus === 'Starred') statusMatch = p.isStarred;
+    if (filterStatus === 'Active') statusMatch = !['Completed', 'Cancelled', 'Delivered'].includes(p.status);
+    if (filterStatus === 'Completed') statusMatch = ['Completed', 'Delivered'].includes(p.status);
+
+    let deliverableMatch = true;
+    if (filterDeliverable === 'Bookmarked') deliverableMatch = p.isStarred;
+
+    return statusMatch && deliverableMatch;
+  });
   
   const freeHours = user?.freeHoursRemaining || 0;
   const totalFreeHours = 3; // Hardcoded default based on feature logic
@@ -177,11 +207,23 @@ export default function Projects() {
           <input type="text" placeholder="Search by project name or ID..." className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-blue-500" />
         </div>
         <div className="flex gap-4">
-          <select className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[140px]">
+          <select 
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[140px]"
+          >
             <option>All Status</option>
+            <option>Starred</option>
+            <option>Active</option>
+            <option>Completed</option>
           </select>
-          <select className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[160px]">
+          <select 
+            value={filterDeliverable}
+            onChange={(e) => setFilterDeliverable(e.target.value)}
+            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[160px]"
+          >
             <option>All Deliverables</option>
+            <option>Bookmarked</option>
           </select>
           <select className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[140px]">
             <option>Newest First</option>
@@ -207,7 +249,7 @@ export default function Projects() {
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#3b82f6]"></div>
         </div>
-      ) : projects.length === 0 ? (
+      ) : displayedProjects.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-28 flex flex-col items-center justify-center text-center">
           <FiFolder className="text-5xl text-blue-400 mb-6" />
           <h2 className="text-2xl font-bold text-gray-900 mb-3">No projects found</h2>
@@ -223,7 +265,7 @@ export default function Projects() {
         </div>
       ) : (
         <div className={viewMode === 'grid' ? "grid grid-cols-1 xl:grid-cols-2 gap-6" : "flex flex-col gap-6"}>
-          {projects.map(project => {
+          {displayedProjects.map(project => {
             const isDelivered = project.status === 'Delivered' || project.status === 'Completed';
             const themeColor = isDelivered ? 'green' : 'blue';
             const hexColor = isDelivered ? '#10b981' : '#3b82f6';
@@ -255,7 +297,10 @@ export default function Projects() {
                           <div className="flex justify-between items-start mb-1">
                             <h3 className="text-lg font-bold text-gray-900 truncate pr-2">{project.title}</h3>
                             <div className="flex items-center gap-1 shrink-0">
-                              {isDelivered ? <FiStar className="text-gray-300" /> : <FiStar className="text-yellow-400 fill-current" />}
+                              <FiStar 
+                                className={`cursor-pointer ${project.isStarred ? 'text-yellow-400 fill-current' : 'text-gray-300 hover:text-gray-400'}`} 
+                                onClick={(e) => { e.stopPropagation(); toggleStar(project._id); }} 
+                              />
                               <FiMoreVertical className="text-gray-400 ml-1 cursor-pointer" />
                             </div>
                           </div>
@@ -286,7 +331,7 @@ export default function Projects() {
                           <div className="flex gap-8">
                             <div>
                               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FiClock /> REQUESTED</p>
-                              <p className="text-xs font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                              <p className="text-xs font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-GB')}</p>
                             </div>
                             <div>
                               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FiUsers /> ENGINEER</p>
@@ -408,7 +453,10 @@ export default function Projects() {
                           <div className="flex justify-between items-start mb-2">
                             <h3 className="text-xl font-bold text-gray-900 truncate pr-2">{project.title}</h3>
                             <div className="flex items-center gap-1 shrink-0">
-                              {isDelivered ? <FiStar className="text-gray-300" /> : <FiStar className="text-yellow-400 fill-current" />}
+                              <FiStar 
+                                className={`cursor-pointer ${project.isStarred ? 'text-yellow-400 fill-current' : 'text-gray-300 hover:text-gray-400'}`} 
+                                onClick={(e) => { e.stopPropagation(); toggleStar(project._id); }} 
+                              />
                               <FiMoreVertical className="text-gray-400 ml-1 cursor-pointer" />
                             </div>
                           </div>
@@ -439,7 +487,7 @@ export default function Projects() {
                           <div className="flex gap-10">
                             <div>
                               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FiClock /> REQUESTED</p>
-                              <p className="text-sm font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                              <p className="text-sm font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-GB')}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FiUsers /> ENGINEER</p>

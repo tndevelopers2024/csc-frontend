@@ -85,7 +85,7 @@ export default function ProjectDetails() {
 
   const formatDateLabel = (dateStr) => {
     const d = new Date(dateStr);
-    const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateLabel = d.toLocaleDateString('en-GB');
     return isToday(d) ? `${dateLabel} (Today)` : dateLabel;
   };
 
@@ -310,6 +310,12 @@ export default function ProjectDetails() {
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Material</h3>
                   <p className="text-sm font-bold text-gray-900">Aluminum</p>
                 </div>
+                <div>
+                  <h3 className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1.5">Est. Hours</h3>
+                  <p className="text-sm font-bold text-gray-900">
+                    {project.estimatedHours ? `${project.estimatedHours} hrs` : 'TBD'}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -518,7 +524,7 @@ export default function ProjectDetails() {
             )}
           </div>
           <div className="text-sm font-medium text-gray-500 ml-10">
-            Created: {new Date(project.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
+            Created: {new Date(project.createdAt).toLocaleDateString('en-GB')}
           </div>
         </div>
 
@@ -989,11 +995,11 @@ export default function ProjectDetails() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-500">Created</span>
-                  <span className="text-sm font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
+                  <span className="text-sm font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-GB')}</span>
                 </div>
                 <div className="flex justify-between items-center pb-5 border-b border-gray-100">
                   <span className="text-sm font-medium text-gray-500">Last Updated</span>
-                  <span className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
+                  <span className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString('en-GB')}</span>
                 </div>
                 
                 <div className="flex justify-between items-center pt-2">

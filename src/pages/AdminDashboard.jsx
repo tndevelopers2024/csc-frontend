@@ -172,7 +172,7 @@ export default function AdminDashboard() {
             <tbody className="divide-y divide-gray-50">
               {filteredProjects.map((project, idx) => {
                 const customerName = project.userId ? `${project.userId.firstName} ${project.userId.lastName}` : 'Unknown';
-                const createdDate = new Date(project.createdAt).toLocaleDateString('en-US');
+                const createdDate = new Date(project.createdAt).toLocaleDateString('en-GB');
                 const isRequested = project.status === 'Requested' || project.status === 'Pending Quote';
                 
                 return (
@@ -194,10 +194,15 @@ export default function AdminDashboard() {
                       <div className="text-[11px] text-gray-500 mt-0.5">{project.userId?.mobilePrefix} {project.userId?.mobile}</div>
                     </td>
                     <td className="py-4 px-6">
-                      <select className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1.5 font-medium cursor-pointer focus:outline-none">
+                      <select className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1.5 font-medium cursor-pointer focus:outline-none w-[130px]">
                         <option>⏳ Not Yet Received</option>
                         <option>✅ Received</option>
                       </select>
+                      {project.paymentDeadline && (
+                        <div className="text-[10px] text-red-500 font-bold mt-1">
+                          PO Date: {new Date(project.paymentDeadline).toLocaleDateString('en-GB')}
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       {isRequested ? (

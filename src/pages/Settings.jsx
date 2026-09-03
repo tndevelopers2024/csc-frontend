@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiMail, FiMonitor, FiInfo, FiSave } from 'react-icons/fi';
+import { FiMail, FiMonitor, FiInfo, FiSave, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 
@@ -35,6 +35,12 @@ export default function Settings() {
 
   const { user } = useOutletContext();
   const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState({ message: '', type: '' });
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: '', type: '' }), 3000);
+  };
 
   const [platformPrefs, setPlatformPrefs] = useState({
     newQuotes: true,
@@ -50,6 +56,27 @@ export default function Settings() {
     }
   }, [user]);
 
+  const handleDiscard = () => {
+    if (user?.notificationPreferences) {
+      setPlatformPrefs({ ...platformPrefs, ...user.notificationPreferences });
+    } else {
+      setPlatformPrefs({
+        newQuotes: true,
+        projectStatus: true,
+        engineerAssign: false,
+        fileDelivery: true,
+        invoiceGen: true,
+      });
+    }
+    setEmailPrefs({
+      projectStatus: true,
+      invoiceGen: true,
+      newQuotes: true,
+      marketing: false,
+      security: true,
+    });
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -58,17 +85,25 @@ export default function Settings() {
         { platformPrefs }, 
         { headers: { 'x-auth-token': token } }
       );
-      alert('Preferences saved successfully!');
+      showToast('Preferences saved successfully!');
     } catch (error) {
       console.error('Error saving preferences:', error);
-      alert('Failed to save preferences.');
+      showToast('Failed to save preferences.', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="max-w-4xl pb-16">
+    <div className="max-w-4xl pb-16 relative">
+      {/* Toast Notification */}
+      <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${toast.message ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+        <div className={`px-6 py-3.5 rounded-full shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] flex items-center gap-3 border ${toast.type === 'error' ? 'bg-red-50 border-red-100 text-red-600' : 'bg-[#10b981] border-[#10b981] text-white'}`}>
+          {toast.type === 'error' ? <FiXCircle className="text-lg" /> : <FiCheckCircle className="text-lg" />}
+          <span className="font-semibold text-sm">{toast.message}</span>
+        </div>
+      </div>
+
       <h1 className="text-3xl font-bold text-[#1e293b] mb-6">Settings</h1>
 
       <div className="space-y-6">
@@ -155,8 +190,11 @@ export default function Settings() {
         </div>
 
         {/* Action Bar */}
-        <div className="bg-[#1c1c1c] rounded-lg p-4 flex items-center justify-end space-x-6 shadow-md mt-2">
-          <button className="text-gray-500 font-bold text-sm hover:text-gray-300 transition-colors">
+        <div className="rounded-lg p-4 flex items-center justify-end space-x-6 shadow-md mt-2">
+          <button 
+            onClick={handleDiscard}
+            className="text-gray-500 font-bold text-sm hover:text-gray-300 transition-colors"
+          >
             Discard changes
           </button>
           <button 

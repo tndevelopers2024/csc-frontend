@@ -19,7 +19,7 @@ const FaqItem = ({ question, answer, isOpen, onClick }) => (
 );
 
 export default function Support() {
-  const [openFaqs, setOpenFaqs] = useState({ 0: true, 2: true, 3: false, 4: false });
+  const [openFaqs, setOpenFaqs] = useState({ 0: true });
 
   const toggleFaq = (index) => {
     setOpenFaqs(prev => ({ ...prev, [index]: !prev[index] }));

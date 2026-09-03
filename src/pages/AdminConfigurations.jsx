@@ -204,7 +204,7 @@ export default function AdminConfigurations() {
                       )}
                     </td>
                     <td className="py-4 px-6 text-center text-xs text-gray-500">
-                      {new Date(rate.createdAt).toLocaleDateString('en-US')}
+                      {new Date(rate.createdAt).toLocaleDateString('en-GB')}
                     </td>
                     <td className="py-4 px-6 text-right flex justify-end gap-3">
                       <button onClick={() => openEditModal(rate)} className="text-blue-500 hover:text-blue-700 flex items-center gap-1 text-xs font-semibold">
