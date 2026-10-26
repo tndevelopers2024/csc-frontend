@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BiDownload, BiUpload, BiLinkAlt } from 'react-icons/bi';
-import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiExternalLink } from 'react-icons/fi';
 import StlViewer from '../components/StlViewer';
 import { useSocket } from '../context/SocketContext';
 import DatePicker from 'react-datepicker';
@@ -28,6 +28,7 @@ export default function AdminQuoteDetails() {
 
   // Deadline state for PO verification
   const [paymentDeadline, setPaymentDeadline] = useState(null);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -151,10 +152,29 @@ export default function AdminQuoteDetails() {
 
   const updateStatus = async (newStatus) => {
     try {
-      if (newStatus === 'In Progress' && !paymentDeadline) {
+      if (newStatus === 'In Progress' && !paymentDeadline && project.status === 'Approved') {
         setToast({ type: 'error', message: 'Please select a payment deadline date before verifying.' });
         setTimeout(() => setToast(null), 3000);
         return;
+      }
+
+      if (newStatus === 'Delivered') {
+        const hasScanFiles = project.scanFiles && project.scanFiles.length > 0;
+        const allFilesCompleted = hasScanFiles 
+          ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
+          : Boolean(project.completedFiles && project.completedFiles.length > 0);
+        
+        if (!allFilesCompleted) {
+          const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
+          setToast({ 
+            type: 'error', 
+            message: hasPendingUploads 
+              ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first."
+              : 'Please upload all completed CAD files before delivering.' 
+          });
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
       }
 
       setSubmitting(true);
@@ -179,9 +199,17 @@ export default function AdminQuoteDetails() {
         const updatedProject = await res.json();
         // The API returns { message, project }
         setProject(updatedProject.project || updatedProject);
+        setToast({ type: 'success', message: `Status updated to ${newStatus}` });
+        setTimeout(() => setToast(null), 3000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setToast({ type: 'error', message: errData.message || 'Failed to update status' });
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (err) {
       console.error('Error updating status:', err);
+      setToast({ type: 'error', message: 'An error occurred while updating status.' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -193,9 +221,10 @@ export default function AdminQuoteDetails() {
       const token = localStorage.getItem('token');
       const formData = new FormData();
 
-      // Append completed files
+      // Append completed files with their indices
       Object.keys(selectedCompletedFiles).forEach(idx => {
         formData.append('completedFiles', selectedCompletedFiles[idx]);
+        formData.append('fileIndices', idx);
       });
 
       // Append invoice file
@@ -219,9 +248,15 @@ export default function AdminQuoteDetails() {
         setSelectedInvoice(null);
         setToast({ type: 'success', message: 'Files uploaded successfully!' });
         setTimeout(() => setToast(null), 3000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setToast({ type: 'error', message: errData.message || 'Failed to upload files' });
+        setTimeout(() => setToast(null), 3000);
       }
     } catch (err) {
       console.error('Error uploading completed files:', err);
+      setToast({ type: 'error', message: 'An error occurred while uploading files' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -247,6 +282,7 @@ export default function AdminQuoteDetails() {
         ...(project.links || []).map((_, i) => `link-${i}`),
         ...(project.scanFiles || []).map((_, i) => i)
       ].every(key => estimatedHours[key] && estimatedHours[key] >= 1);
+      const hasQuotation = Boolean(quotationFile);
 
       return (
         <div className="bg-[#f4f8ff] rounded-xl border border-blue-100 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -262,12 +298,17 @@ export default function AdminQuoteDetails() {
             {!allItemsHaveHours && (
               <p className="text-xs text-red-500 mt-2 font-medium">Please estimate at least 1 hour for each file/link before submitting.</p>
             )}
+            {allItemsHaveHours && totalHours > 0 && !hasQuotation && (
+              <p className="text-xs text-amber-600 mt-2 font-medium flex items-center gap-1">
+                <FiAlertCircle /> Please upload a quotation document before submitting.
+              </p>
+            )}
           </div>
           <button 
             onClick={submitQuote} 
-            disabled={submitting || !allItemsHaveHours || totalHours === 0}
+            disabled={submitting || !allItemsHaveHours || totalHours === 0 || !hasQuotation}
             className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit ${
-              submitting || !allItemsHaveHours || totalHours === 0
+              submitting || !allItemsHaveHours || totalHours === 0 || !hasQuotation
                 ? 'bg-blue-300 text-white cursor-not-allowed'
                 : 'bg-[#3b82f6] text-white hover:bg-blue-600'
             }`}
@@ -346,15 +387,39 @@ export default function AdminQuoteDetails() {
               Verify & Start CAD
             </button>
             
-            <button 
-              onClick={() => updateStatus('Rejected')} 
-              disabled={submitting}
-              className={`w-full px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors border bg-white ${
-                submitting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-500 text-red-500 hover:bg-red-50'
-              }`}
-            >
-              Reject Project / PO
-            </button>
+            {!showRejectConfirm ? (
+              <button 
+                onClick={() => setShowRejectConfirm(true)} 
+                disabled={submitting}
+                className={`w-full px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors border bg-white ${
+                  submitting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-500 text-red-500 hover:bg-red-50'
+                }`}
+              >
+                Reject Project / PO
+              </button>
+            ) : (
+              <div className="w-full bg-red-50 border border-red-200 rounded-lg p-3 flex flex-col gap-2 animate-in fade-in duration-200">
+                <p className="text-xs font-bold text-red-700">Confirm Rejecting Project / PO?</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setShowRejectConfirm(false);
+                      updateStatus('Rejected');
+                    }}
+                    disabled={submitting}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-md shadow-xs flex items-center justify-center transition-colors"
+                  >
+                    Confirm Reject
+                  </button>
+                  <button 
+                    onClick={() => setShowRejectConfirm(false)}
+                    className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold py-2 rounded-md shadow-xs flex items-center justify-center transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -372,17 +437,29 @@ export default function AdminQuoteDetails() {
     }
     
     if (project.status === 'In Progress') {
+      const hasScanFiles = project.scanFiles && project.scanFiles.length > 0;
+      const allFilesCompleted = hasScanFiles 
+        ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
+        : Boolean(project.completedFiles && project.completedFiles.length > 0);
+      const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
+      const deliverDisabled = submitting || !allFilesCompleted;
+
       return (
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-bold text-blue-800 mb-1">CAD Production in Progress</h2>
             <p className="text-xs text-blue-600 font-medium">The engineering team is currently working on this project.</p>
+            {!allFilesCompleted && (
+              <p className="text-[11px] text-red-500 font-bold mt-1.5 flex items-center gap-1">
+                <FiAlertCircle /> {hasPendingUploads ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first." : "Please upload all completed CAD files before delivering."}
+              </p>
+            )}
           </div>
           <button 
             onClick={() => updateStatus('Delivered')} 
-            disabled={submitting}
-            className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit ${
-              submitting ? 'bg-blue-300 text-white cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-blue-600'
+            disabled={deliverDisabled}
+            className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors h-fit shrink-0 ${
+              deliverDisabled ? 'bg-blue-300 text-white cursor-not-allowed opacity-70' : 'bg-[#3b82f6] text-white hover:bg-blue-600'
             }`}
           >
             {submitting ? 'Updating...' : 'Deliver to Customer'}
@@ -392,7 +469,11 @@ export default function AdminQuoteDetails() {
     }
     
     if (project.status === 'QA Review') {
-      const allFilesCompleted = !project.scanFiles || project.scanFiles.length === 0 || project.scanFiles.every((_, idx) => project.completedFiles?.[idx]);
+      const hasScanFiles = project.scanFiles && project.scanFiles.length > 0;
+      const allFilesCompleted = hasScanFiles 
+        ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
+        : Boolean(project.completedFiles && project.completedFiles.length > 0);
+      const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
       const deliverDisabled = submitting || !allFilesCompleted;
 
       return (
@@ -402,7 +483,7 @@ export default function AdminQuoteDetails() {
             <p className="text-xs text-blue-600 font-medium">Project is undergoing quality assurance before final delivery.</p>
             {!allFilesCompleted && (
               <p className="text-[11px] text-red-500 font-bold mt-1.5 flex items-center gap-1">
-                <FiAlertCircle /> Please upload all completed files before delivering.
+                <FiAlertCircle /> {hasPendingUploads ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first." : "Please upload all completed CAD files before delivering."}
               </p>
             )}
           </div>
@@ -426,11 +507,54 @@ export default function AdminQuoteDetails() {
             <h2 className="text-sm font-bold text-gray-800 mb-1">Project Delivered</h2>
             <p className="text-xs text-gray-600 font-medium">The final files have been delivered to the customer.</p>
           </div>
+          <button 
+            onClick={() => updateStatus('In Progress')} 
+            disabled={submitting}
+            className="border border-gray-300 text-gray-600 hover:bg-gray-100 px-4 py-2 rounded-lg text-xs font-semibold transition-colors shrink-0"
+          >
+            Move back to In Progress
+          </button>
         </div>
       );
     }
 
-    // Default fallback
+    if (project.status === 'Reported') {
+      const hasScanFiles = project.scanFiles && project.scanFiles.length > 0;
+      const allFilesCompleted = hasScanFiles 
+        ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
+        : Boolean(project.completedFiles && project.completedFiles.length > 0);
+      const deliverDisabled = submitting || !allFilesCompleted;
+
+      return (
+        <div className="bg-orange-50 rounded-xl border border-orange-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
+              <h2 className="text-sm font-bold text-orange-950">Customer Reported an Issue</h2>
+            </div>
+            <p className="text-xs text-orange-800 font-medium">Customer has flagged an issue with the delivered files. Review the notes above, resume CAD production to make fixes, or upload updated files.</p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button 
+              onClick={() => updateStatus('In Progress')} 
+              disabled={submitting}
+              className="bg-white border border-orange-300 text-orange-800 hover:bg-orange-100/60 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-2xs"
+            >
+              Resume CAD (In Progress)
+            </button>
+            <button 
+              onClick={() => updateStatus('Delivered')} 
+              disabled={deliverDisabled}
+              className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                deliverDisabled ? 'bg-orange-300 text-white cursor-not-allowed opacity-70' : 'bg-orange-600 text-white hover:bg-orange-700 shadow-sm'
+              }`}
+            >
+              {submitting ? 'Updating...' : 'Re-Deliver to Customer'}
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 shadow-sm flex items-center justify-center">
         <p className="text-sm font-medium text-gray-600">Current Status: {project.status}</p>
@@ -640,8 +764,8 @@ export default function AdminQuoteDetails() {
               </button>
             )}
             {quotationFile && (
-              <span className="text-xs text-green-600 font-medium break-all">
-                Selected: {quotationFile.name}
+              <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 break-all bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-md self-start">
+                <FiCheckCircle className="text-emerald-500" /> Selected: {quotationFile.name}
               </span>
             )}
             {project.quotationFiles && project.quotationFiles.length > 0 && (
@@ -678,6 +802,76 @@ export default function AdminQuoteDetails() {
           )}
         </div>
       </div>
+
+      {/* Customer Reported Issues Section */}
+      {((project.reportedIssues && project.reportedIssues.length > 0) || project.status === 'Reported') && (
+        <div className="bg-orange-50/60 border border-orange-200/90 rounded-xl p-6 mb-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600 shadow-2xs">
+                <FiAlertTriangle size={18} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-orange-950 flex items-center gap-2">
+                  Customer Reported Issues
+                  {project.status === 'Reported' && (
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping"></span>
+                  )}
+                </h2>
+                <p className="text-xs text-orange-700">The customer has submitted feedback/issues regarding the files for this project.</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-200/70 uppercase tracking-wider">
+              {project.status === 'Reported' ? 'Action Required' : 'Feedback Logged'}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {project.reportedIssues && project.reportedIssues.length > 0 ? (
+              project.reportedIssues.map((issue, idx) => (
+                <div key={idx} className="bg-white border border-orange-200/80 rounded-lg p-4 shadow-xs">
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-gray-900">
+                        {issue.ticketId ? `Ticket ${issue.ticketId}` : `Report #${idx + 1}`}
+                      </span>
+                      {issue.ticketId && (
+                        <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
+                          Support Ticket Available
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                      <FiClock size={12} className="text-gray-400" />
+                      {new Date(issue.reportedAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  
+                  <div className="p-3 bg-orange-50/40 rounded-lg border border-orange-100/80 text-xs text-gray-900 leading-relaxed whitespace-pre-wrap font-sans">
+                    <span className="font-semibold text-orange-950 block mb-1">Issue Details:</span>
+                    {issue.notes}
+                  </div>
+                  
+                  <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-gray-500">
+                    <span>
+                      Customer: <span className="font-semibold text-gray-700">{customerName}</span> ({project.userId?.email || 'Customer'})
+                    </span>
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                      issue.status === 'Resolved' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                    }`}>
+                      Status: {issue.status || 'Open'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-white border border-orange-200 rounded-lg p-4 text-xs text-orange-850">
+                This project has been placed in "Reported" status by the customer.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Complete Project Files Section */}
       {!['Pending Quote', 'Quote Ready', 'Revision Requested', 'Rejected'].includes(project.status) && (

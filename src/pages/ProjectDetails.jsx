@@ -20,11 +20,15 @@ export default function ProjectDetails() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
   const [issueText, setIssueText] = useState('');
+  const [submittingIssue, setSubmittingIssue] = useState(false);
+  const [issueSuccessMsg, setIssueSuccessMsg] = useState('');
+  const [issueErrorMsg, setIssueErrorMsg] = useState('');
   const [selectedStlIndex, setSelectedStlIndex] = useState(0);
 
   // Modals state
   const [isApprovalModalOpen, setApprovalModalOpen] = useState(false);
   const [isRevisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -95,10 +99,11 @@ export default function ProjectDetails() {
       case 'Under Review': return { title: 'Reviewing Files', desc: 'Technical team assessing scan feasibility and mesh density requirements.' };
       case 'Quote Ready': return { title: 'Quote ready', desc: 'Proposal generated based on High-Accuracy 3D scanning protocols.' };
       case 'Revision Requested': return { title: 'Revision Requested', desc: 'Quote Revision has been requested.' };
-      case 'Approved': return { title: 'Quote Approved', desc: 'Customer has approved the quotation.' };
+      case 'Approved': return { title: 'Quote Approved', desc: 'The Proposed Quote is Approved' };
       case 'In Progress': return { title: 'CAD Production', desc: 'Engineering team is working on the project.' };
       case 'QA Review': return { title: 'QA Review', desc: 'Project is undergoing quality assurance before final delivery.' };
       case 'Delivered': return { title: 'Project Delivered', desc: 'The final files have been delivered to the customer.' };
+      case 'Reported': return { title: 'Issue Reported', desc: 'Customer reported a file issue. Engineering team is reviewing.' };
       default: return { title: status, desc: `Project moved to ${status}.` };
     }
   };
@@ -193,6 +198,41 @@ export default function ProjectDetails() {
     }
   };
 
+  const handleSubmitIssue = async () => {
+    if (!issueText.trim()) return;
+    try {
+      setSubmittingIssue(true);
+      setIssueSuccessMsg('');
+      setIssueErrorMsg('');
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${id}/report-issue`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ notes: issueText.trim() })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setProject(data.project);
+        setIssueText('');
+        setIssueSuccessMsg('Your issue has been reported successfully! Our engineering team has been notified.');
+        setTimeout(() => setIssueSuccessMsg(''), 6000);
+      } else {
+        setIssueErrorMsg(data.message || 'Failed to submit issue. Please try again.');
+        setTimeout(() => setIssueErrorMsg(''), 5000);
+      }
+    } catch (err) {
+      console.error('Error submitting issue:', err);
+      setIssueErrorMsg('An error occurred while submitting your issue.');
+      setTimeout(() => setIssueErrorMsg(''), 5000);
+    } finally {
+      setSubmittingIssue(false);
+    }
+  };
+
 
   // --- RENDER QUOTE PHASE LAYOUT (Pre-approval) ---
   const renderQuotePhaseLayout = () => {
@@ -217,7 +257,11 @@ export default function ProjectDetails() {
           <div>
             <div className="flex items-center text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">
               PROJECT ID: {project._id.substring(project._id.length - 8).toUpperCase()}
-              {project.status === 'Quote Ready' ? (
+              {project.status === 'Approved' ? (
+                <span className="ml-4 px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 flex items-center gap-1 rounded font-bold normal-case tracking-normal">
+                  <FiCheck strokeWidth={3} /> Quote Approved
+                </span>
+              ) : project.status === 'Quote Ready' ? (
                 <span className="ml-4 px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 flex items-center gap-1 rounded font-bold normal-case tracking-normal">
                   <FiCheck strokeWidth={3} /> Quote ready
                 </span>
@@ -257,12 +301,41 @@ export default function ProjectDetails() {
                     <FiArrowLeft className="rotate-[135deg]" /> Request Revision
                   </button>
                 </div>
-                <button 
-                  onClick={() => updateProjectStatus('Rejected')}
-                  className="w-full bg-[#ef4444] hover:bg-red-600 text-white text-xs font-bold py-3 rounded-lg shadow-sm flex items-center justify-center gap-1"
-                >
-                  <FiX /> Reject Quote
-                </button>
+                {!showRejectConfirm ? (
+                  <button 
+                    onClick={() => setShowRejectConfirm(true)}
+                    className="w-full bg-[#ef4444] hover:bg-red-600 text-white text-xs font-bold py-3 rounded-lg shadow-sm flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <FiX /> Reject Quote
+                  </button>
+                ) : (
+                  <div className="w-full bg-red-50 border border-red-200 rounded-lg p-3 flex flex-col gap-2.5 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 text-red-700">
+                      <FiAlertTriangle className="text-red-500 shrink-0" size={14} />
+                      <span className="text-xs font-bold">Confirm Quote Rejection?</span>
+                    </div>
+                    <p className="text-[11px] text-red-600 leading-snug">
+                      Are you sure you want to reject this quote? CAD production will not start.
+                    </p>
+                    <div className="flex gap-2 mt-0.5">
+                      <button 
+                        onClick={() => {
+                          setShowRejectConfirm(false);
+                          updateProjectStatus('Rejected');
+                        }}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-md shadow-xs flex items-center justify-center gap-1 transition-colors"
+                      >
+                        <FiCheck size={13} /> Confirm Reject
+                      </button>
+                      <button 
+                        onClick={() => setShowRejectConfirm(false)}
+                        className="flex-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold py-2 rounded-md shadow-xs flex items-center justify-center transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
             
@@ -464,7 +537,7 @@ export default function ProjectDetails() {
       if (['Pending Quote', 'Under Review'].includes(status)) return 0;
       if (['Quote Ready', 'Revision Requested'].includes(status)) return 1;
       if (['Approved'].includes(status)) return 2;
-      if (['In Progress', 'QA Review'].includes(status)) return 3;
+      if (['In Progress', 'QA Review', 'Reported'].includes(status)) return 3;
       if (['Delivered', 'Completed'].includes(status)) return 4;
       return 0;
     };
@@ -475,7 +548,10 @@ export default function ProjectDetails() {
     let badgeClass = "bg-yellow-100 text-yellow-500 border border-yellow-200";
     let badgeText = "UNDER PROGRESS";
     
-    if (['Delivered', 'Completed'].includes(project.status)) {
+    if (project.status === 'Reported') {
+      badgeClass = "bg-orange-100 text-orange-600 border border-orange-200";
+      badgeText = "ISSUE REPORTED";
+    } else if (['Delivered', 'Completed'].includes(project.status)) {
       badgeClass = "bg-green-100 text-green-500 border border-green-200";
       badgeText = "DELIVERED";
     } else if (['Pending Quote', 'Under Review'].includes(project.status)) {
@@ -929,28 +1005,85 @@ export default function ProjectDetails() {
 
             {/* Report File Issues - Always at the bottom of the left column */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-auto">
-              <div className="px-6 py-4 flex items-center gap-2 text-gray-700 font-medium text-sm">
-                <FiAlertTriangle size={16} className="text-gray-600" />
-                Report File Issues
+              <div className="px-6 py-4 flex items-center justify-between border-b border-gray-50 text-gray-700 font-medium text-sm">
+                <div className="flex items-center gap-2">
+                  <FiAlertTriangle size={16} className="text-orange-500" />
+                  Report File Issues
+                </div>
+                {project.status === 'Reported' && (
+                  <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2.5 py-0.5 rounded-full">
+                    Issue Under Review
+                  </span>
+                )}
               </div>
-              <div className="px-6 pb-6 pt-0">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-3">
+
+              <div className="p-6">
+                {/* Previously reported issues list */}
+                {project.reportedIssues && project.reportedIssues.length > 0 && (
+                  <div className="mb-5 space-y-3">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Reported Issues</p>
+                    {project.reportedIssues.map((issue, idx) => (
+                      <div key={idx} className="bg-orange-50/70 border border-orange-200/70 rounded-lg p-3.5 text-xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-orange-900 flex items-center gap-1.5">
+                            <FiAlertTriangle className="text-orange-500" size={13} />
+                            {issue.ticketId ? `Ticket ${issue.ticketId}` : `Issue #${idx + 1}`}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            {new Date(issue.reportedAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-gray-700 leading-relaxed font-normal whitespace-pre-wrap">{issue.notes}</p>
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                            issue.status === 'Resolved' 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            Status: {issue.status || 'Open'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Feedback messages */}
+                {issueSuccessMsg && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs font-medium flex items-center gap-2">
+                    <FiCheck className="text-green-600 shrink-0" size={15} />
+                    {issueSuccessMsg}
+                  </div>
+                )}
+                {issueErrorMsg && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium flex items-center gap-2">
+                    <FiAlertTriangle className="text-red-600 shrink-0" size={15} />
+                    {issueErrorMsg}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-2">
                   <FiSettings size={14} className="text-gray-400" /> Additional Notes
                 </div>
                 <div className="relative">
                   <textarea 
                     value={issueText}
                     onChange={(e) => setIssueText(e.target.value)}
-                    placeholder="Any other concerns or questions? Let us know..."
-                    className="w-full border border-gray-200 rounded-lg p-4 text-sm focus:outline-none focus:border-blue-500 min-h-[140px] resize-none text-gray-700"
+                    maxLength={1000}
+                    placeholder="Describe any issues with the completed files or model..."
+                    className="w-full border border-gray-200 rounded-lg p-4 text-sm focus:outline-none focus:border-blue-500 min-h-[120px] resize-none text-gray-700"
                   />
-                  <div className="absolute bottom-4 right-4 text-[10px] text-gray-400 font-medium">
+                  <div className="absolute bottom-3 right-4 text-[10px] text-gray-400 font-medium">
                     {issueText.length}/1000
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <button className="bg-[#3b82f6] hover:bg-blue-600 text-white font-bold py-2.5 px-6 rounded-md text-sm transition-colors shadow-sm shadow-blue-500/20 flex items-center gap-2">
-                    <FiSend size={14} /> Submit Issues
+                  <button 
+                    onClick={handleSubmitIssue}
+                    disabled={submittingIssue || !issueText.trim()}
+                    className="bg-[#3b82f6] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-md text-sm transition-colors shadow-sm shadow-blue-500/20 flex items-center gap-2"
+                  >
+                    <FiSend size={14} /> {submittingIssue ? 'Submitting...' : 'Submit Issues'}
                   </button>
                 </div>
               </div>
@@ -1011,7 +1144,7 @@ export default function ProjectDetails() {
 
             {/* Pay Now block */}
             {project.billableHours > 0 && project.poFile && (
-              <div className="bg-[#1e1e1e] rounded-xl shadow-lg p-6 flex flex-col items-center">
+              <div className="rounded-xl shadow-lg p-6 flex flex-col items-center">
                 <p className="text-xs text-gray-400 font-medium mb-4">Pay your invoice amount here.</p>
                 <div className="w-full relative z-10 min-h-[48px]">
                   <PayPalScriptProvider options={{ "client-id": "test", currency: "USD" }}>
@@ -1053,8 +1186,9 @@ export default function ProjectDetails() {
     );
   };
 
-  // Determine layout conditionally
-  if (['Pending Quote', 'Quote Ready', 'Revision Requested', 'Rejected'].includes(project.status)) {
+  // Determine layout conditionally: show Quote Phase layout until Admin starts work ('In Progress' or later)
+  const workStartedStatuses = ['In Progress', 'QA Review', 'Delivered', 'Completed'];
+  if (!workStartedStatuses.includes(project.status)) {
     return renderQuotePhaseLayout();
   } else {
     return renderActiveProjectLayout();

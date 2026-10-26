@@ -50,6 +50,22 @@ const CustomDropdown = ({ options, placeholder, value, onChange }) => {
   );
 };
 
+const SOFTWARE_VERSIONS = {
+  'Solidworks: .sldprt': [
+    '2026', '2025', '2024', '2023', '2022', '2021', '2020',
+    '2019', '2018', '2017', '2016', '2015', '2014', '2013', '2012', '2011'
+  ],
+  'Creo: .prt': [
+    '12.0', '11.0', '10.0', '9.0', '8.0', '7.0', '6.0', '5.0'
+  ],
+  'Inventor: .iam, ipt': [
+    '2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'
+  ],
+  'Siemens NX: .prt': [
+    'NX 10', 'NX 11', 'NX 12', 'Higher Versions'
+  ]
+};
+
 export default function NewProject() {
   const navigate = useNavigate();
   const { user } = useOutletContext();
@@ -92,7 +108,17 @@ export default function NewProject() {
   };
 
   const handleCheckboxChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.checked});
+    const { name, checked } = e.target;
+    setFormData(prev => {
+      const updated = { ...prev, [name]: checked };
+      if (!updated.designIntent && !updated.hybridModelling && !updated.scanToNurbs && !updated.asBuildModelling) {
+        updated.cadNeutralFiles = false;
+      }
+      if (!updated.designIntent) {
+        updated.drafting2D = false;
+      }
+      return updated;
+    });
   };
 
   const handleScanFilesChange = (e) => {
@@ -652,18 +678,18 @@ export default function NewProject() {
                         options={['Solidworks: .sldprt', 'Creo: .prt', 'Inventor: .iam, ipt', 'Siemens NX: .prt']}
                         placeholder="Select Software"
                         value={formData.software}
-                        onChange={(val) => setFormData({...formData, software: val})}
+                        onChange={(val) => setFormData(prev => ({ ...prev, software: val, version: '' }))}
                       />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Version (Optional)</label>
-                    <div className={!formData.designIntent ? 'opacity-50 pointer-events-none' : ''}>
+                    <div className={(!formData.designIntent || !formData.software) ? 'opacity-50 pointer-events-none' : ''}>
                       <CustomDropdown 
-                        options={['2024', '2023', '2022', '2021', '2020']}
-                        placeholder="Select Version"
+                        options={formData.software && SOFTWARE_VERSIONS[formData.software] ? SOFTWARE_VERSIONS[formData.software] : []}
+                        placeholder={!formData.software ? 'Select Software first' : 'Select Version'}
                         value={formData.version}
-                        onChange={(val) => setFormData({...formData, version: val})}
+                        onChange={(val) => setFormData(prev => ({ ...prev, version: val }))}
                       />
                     </div>
                   </div>
@@ -671,13 +697,13 @@ export default function NewProject() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-gray-100">
-                <label className={`flex items-center text-sm font-medium text-gray-700 cursor-pointer ${(formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling) ? '' : 'opacity-50 pointer-events-none'}`}>
+                <label className={`flex items-center text-sm font-medium text-gray-700 cursor-pointer ${(formData.designIntent || formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling) ? '' : 'opacity-50 pointer-events-none'}`}>
                   <input 
                     type="checkbox" 
                     name="cadNeutralFiles"
                     checked={formData.cadNeutralFiles}
                     onChange={handleCheckboxChange}
-                    disabled={!(formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling)}
+                    disabled={!(formData.designIntent || formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling)}
                     className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
                   />
                   CAD neutral files
@@ -734,8 +760,8 @@ export default function NewProject() {
                   <button onClick={() => setCurrentStep(1)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Change</button>
                 </div>
                 <div className="p-6">
-                  {uploadMethod === 'Upload' && scanFiles.length === 0 && referenceImages.length === 0 ? (
-                    <div className="text-sm text-gray-500 italic">No files selected.</div>
+                  {(uploadMethod === 'Upload' && scanFiles.length === 0) || (uploadMethod === 'Link' && links.filter(l => l.trim() !== '').length === 0) ? (
+                    <div className="text-sm text-gray-500 italic">No scan files selected.</div>
                   ) : (
                     <div className="space-y-4">
                       {uploadMethod === 'Link' && links.filter(l => l.trim() !== '').map((l, i) => (
@@ -754,7 +780,7 @@ export default function NewProject() {
                           </div>
                         </div>
                       ))}
-                      {scanFiles.map((f, i) => (
+                      {uploadMethod === 'Upload' && scanFiles.map((f, i) => (
                         <div key={i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4">
@@ -763,22 +789,6 @@ export default function NewProject() {
                             <div>
                               <div className="text-sm font-bold text-gray-900">{f.name}</div>
                               <div className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(1)} MB • Scan File</div>
-                            </div>
-                          </div>
-                          <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center">
-                            <FaCheck className="text-blue-500 text-[10px]" />
-                          </div>
-                        </div>
-                      ))}
-                      {referenceImages.map((f, i) => (
-                        <div key={'ref'+i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4">
-                              <FiFileText className="text-gray-400 text-xl" />
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{f.name}</div>
-                              <div className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(1)} MB • Reference File</div>
                             </div>
                           </div>
                           <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center">
@@ -839,51 +849,88 @@ export default function NewProject() {
         <div className="lg:w-[32%] flex flex-col gap-6">
 
           {currentStep === 4 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-0 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                <div className="flex items-center text-gray-900 font-bold">
-                  <span className="text-gray-500 mr-2 text-lg">⚙️</span>
-                  Project Details
+            <>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div className="flex items-center text-gray-900 font-bold">
+                    <span className="text-gray-500 mr-2 text-lg">⚙️</span>
+                    Project Details
+                  </div>
+                  <button onClick={() => setCurrentStep(2)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Edit</button>
                 </div>
-                <button onClick={() => setCurrentStep(2)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Edit</button>
-              </div>
-              <div className="p-6">
-                <div className="space-y-5">
-                  <div>
-                    <div className="text-xs font-semibold text-gray-400 mb-1">Project Name</div>
-                    <div className="text-sm font-bold text-gray-900">{formData.title || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-gray-400 mb-1">Project Description</div>
-                    <div className="text-sm font-bold text-gray-900">{formData.description || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="p-6">
+                  <div className="space-y-5">
                     <div>
-                      <div className="text-xs font-semibold text-gray-400 mb-1">Application Type</div>
-                      <div className="text-sm font-bold text-gray-900">{formData.appType || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      <div className="text-xs font-semibold text-gray-400 mb-1">Project Name</div>
+                      <div className="text-sm font-bold text-gray-900">{formData.title || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-gray-400 mb-1">Accuracy</div>
-                      <div className="text-sm font-bold text-gray-900">{formData.accuracy || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      <div className="text-xs font-semibold text-gray-400 mb-1">Project Description</div>
+                      <div className="text-sm font-bold text-gray-900">{formData.description || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">Application Type</div>
+                        <div className="text-sm font-bold text-gray-900">{formData.appType || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">Accuracy</div>
+                        <div className="text-sm font-bold text-gray-900">{formData.accuracy || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">Part Size</div>
+                        <div className="text-sm font-bold text-gray-900">{formData.partSize || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">NDA</div>
+                        <div className="text-sm font-bold text-gray-900">{formData.nda || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      </div>
+                    </div>
                     <div>
-                      <div className="text-xs font-semibold text-gray-400 mb-1">Part Size</div>
-                      <div className="text-sm font-bold text-gray-900">{formData.partSize || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      <div className="text-xs font-semibold text-gray-400 mb-1">CAD Free Hours</div>
+                      <div className="text-sm font-bold text-gray-900">{formData.useFreeHours || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
                     </div>
-                    <div>
-                      <div className="text-xs font-semibold text-gray-400 mb-1">NDA</div>
-                      <div className="text-sm font-bold text-gray-900">{formData.nda || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-gray-400 mb-1">CAD Free Hours</div>
-                    <div className="text-sm font-bold text-gray-900">{formData.useFreeHours || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
                   </div>
                 </div>
               </div>
-            </div>
+
+              {/* Bill of materials and technical data Box */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                  <div className="flex items-center text-gray-900 font-bold">
+                    <FiFileText className="text-gray-500 mr-2 text-lg" />
+                    Bill of Materials & Technical Data
+                  </div>
+                  <button onClick={() => setCurrentStep(1)} className="text-blue-500 hover:text-blue-700 text-sm font-semibold">Change</button>
+                </div>
+                <div className="p-6">
+                  {referenceImages.length === 0 ? (
+                    <div className="text-sm text-gray-500 italic">No files selected.</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {referenceImages.map((f, i) => (
+                        <div key={'ref'+i} className="flex items-center justify-between border border-gray-100 rounded-lg p-4">
+                          <div className="flex items-center min-w-0 pr-3">
+                            <div className="w-10 h-10 bg-gray-50 rounded flex items-center justify-center mr-4 shrink-0">
+                              <FiFileText className="text-gray-400 text-xl" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-gray-900 truncate" title={f.name}>{f.name}</div>
+                              <div className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(1)} MB • Reference File</div>
+                            </div>
+                          </div>
+                          <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                            <FaCheck className="text-blue-500 text-[10px]" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           {currentStep !== 4 && (
@@ -993,83 +1040,85 @@ export default function NewProject() {
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-300 relative mt-10">
-            {/* Top blue bar */}
-            <div className="absolute top-0 left-0 w-full h-[6px] bg-[#1e73e8]"></div>
-            
-            <div className="px-12 py-10 flex flex-col items-center">
-              {/* Icon */}
-              <div className="w-16 h-16 bg-[#e6f0fd] rounded-[1.25rem] flex items-center justify-center mb-6 mt-4">
-                <div className="w-8 h-8 bg-[#3b82f6] rounded-full flex items-center justify-center">
-                  <FaCheck className="text-white text-md" />
+        <div className="fixed inset-0 z-50 overflow-y-auto custom-scrollbar p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="min-h-full flex items-center justify-center py-6">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300 relative">
+              {/* Top blue bar */}
+              <div className="w-full h-1 bg-[#1e73e8]"></div>
+              
+              <div className="px-6 sm:px-8 py-6 sm:py-7 flex flex-col items-center">
+                {/* Icon */}
+                <div className="w-12 h-12 bg-[#e6f0fd] rounded-xl flex items-center justify-center mb-3 mt-1">
+                  <div className="w-6 h-6 bg-[#3b82f6] rounded-full flex items-center justify-center">
+                    <FaCheck className="text-white text-xs" />
+                  </div>
                 </div>
-              </div>
-              
-              {/* Title & Subtitle */}
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Project Submitted Successfully!</h2>
-              <p className="text-gray-500 text-center text-sm max-w-sm mb-6">
-                Your technical data has been securely uploaded to our metrology processing cluster.
-              </p>
-              
-              {/* What Happens Next Section */}
-              <div className="w-full text-left mt-4 border-t border-gray-100 pt-6">
-                <h3 className="text-[11px] font-bold text-[#3b82f6] uppercase tracking-widest mb-6">What Happens Next</h3>
                 
-                <div className="relative">
-                  {/* Vertical Line */}
-                  <div className="absolute top-2 bottom-6 left-[1.125rem] w-px bg-gray-200 z-0"></div>
+                {/* Title & Subtitle */}
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1.5 text-center">Project Submitted Successfully!</h2>
+                <p className="text-gray-500 text-center text-xs sm:text-sm max-w-xs mb-4">
+                  Your technical data has been securely uploaded to our metrology processing cluster.
+                </p>
+                
+                {/* What Happens Next Section */}
+                <div className="w-full text-left mt-1 border-t border-gray-100 pt-4">
+                  <h3 className="text-[10px] font-bold text-[#3b82f6] uppercase tracking-wider mb-4">What Happens Next</h3>
                   
-                  {/* Step 1 */}
-                  <div className="relative z-10 flex items-start gap-5 mb-8">
-                    <div className="w-9 h-9 rounded bg-[#e6f0fd] text-[#1e73e8] font-bold flex shrink-0 items-center justify-center outline outline-8 outline-white">1</div>
-                    <div className="pt-1.5">
-                      <h4 className="font-bold text-gray-900 mb-1">Technical Review</h4>
-                      <p className="text-sm text-gray-500 leading-relaxed">Our senior engineers will analyze your scan data for density, alignment, and geometric integrity.</p>
+                  <div className="relative">
+                    {/* Vertical Line */}
+                    <div className="absolute top-2 bottom-5 left-[0.95rem] w-px bg-gray-200 z-0"></div>
+                    
+                    {/* Step 1 */}
+                    <div className="relative z-10 flex items-start gap-3.5 mb-4 sm:mb-5">
+                      <div className="w-7 h-7 rounded-md bg-[#e6f0fd] text-[#1e73e8] text-xs font-bold flex shrink-0 items-center justify-center outline outline-4 outline-white">1</div>
+                      <div className="pt-0.5">
+                        <h4 className="font-semibold text-xs sm:text-sm text-gray-900 mb-0.5">Technical Review</h4>
+                        <p className="text-xs text-gray-500 leading-relaxed">Our senior engineers will analyze your scan data for density, alignment, and geometric integrity.</p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Step 2 */}
-                  <div className="relative z-10 flex items-start gap-5 mb-8">
-                    <div className="w-9 h-9 rounded bg-[#e6f0fd] text-[#1e73e8] font-bold flex shrink-0 items-center justify-center outline outline-8 outline-white">2</div>
-                    <div className="pt-1.5">
-                      <h4 className="font-bold text-gray-900 mb-1">Quotation</h4>
-                      <p className="text-sm text-gray-500 leading-relaxed">You'll receive a detailed technical quote and lead-time estimate within 3 business hours.</p>
+                    
+                    {/* Step 2 */}
+                    <div className="relative z-10 flex items-start gap-3.5 mb-4 sm:mb-5">
+                      <div className="w-7 h-7 rounded-md bg-[#e6f0fd] text-[#1e73e8] text-xs font-bold flex shrink-0 items-center justify-center outline outline-4 outline-white">2</div>
+                      <div className="pt-0.5">
+                        <h4 className="font-semibold text-xs sm:text-sm text-gray-900 mb-0.5">Quotation</h4>
+                        <p className="text-xs text-gray-500 leading-relaxed">You'll receive a detailed technical quote and lead-time estimate within 3 business hours.</p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Step 3 */}
-                  <div className="relative z-10 flex items-start gap-5">
-                    <div className="w-9 h-9 rounded bg-[#e6f0fd] text-[#1e73e8] font-bold flex shrink-0 items-center justify-center outline outline-8 outline-white">3</div>
-                    <div className="pt-1.5">
-                      <h4 className="font-bold text-gray-900 mb-1">Project Start</h4>
-                      <p className="text-sm text-gray-500 leading-relaxed">Review and approve the quote in your CAD Wallet to initiate the reverse engineering process.</p>
+                    
+                    {/* Step 3 */}
+                    <div className="relative z-10 flex items-start gap-3.5">
+                      <div className="w-7 h-7 rounded-md bg-[#e6f0fd] text-[#1e73e8] text-xs font-bold flex shrink-0 items-center justify-center outline outline-4 outline-white">3</div>
+                      <div className="pt-0.5">
+                        <h4 className="font-semibold text-xs sm:text-sm text-gray-900 mb-0.5">Project Start</h4>
+                        <p className="text-xs text-gray-500 leading-relaxed">Review and approve the quote in your CAD Wallet to initiate the reverse engineering process.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* Actions */}
-              <div className="flex w-full gap-4 mt-12">
-                <button 
-                  onClick={() => navigate('/dashboard')} 
-                  className="flex-1 bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
-                >
-                  Back to Dashboard
-                  <FiArrowRight className="ml-2" />
-                </button>
-                <button 
-                  onClick={() => navigate('/dashboard/projects')} 
-                  className="flex-1 bg-white border border-[#3b82f6] text-[#3b82f6] hover:bg-blue-50 font-semibold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
-                >
-                  View Project Details
-                </button>
-              </div>
-              
-              {/* Footer text */}
-              <div className="flex items-center text-[10px] font-bold text-gray-400 mt-8 tracking-widest uppercase">
-                <BiShieldAlt2 className="mr-1.5 text-lg" />
-                END-TO-END ENCRYPTED DATA PROCESSING
+                
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row w-full gap-3 mt-6">
+                  <button 
+                    onClick={() => navigate('/dashboard')} 
+                    className="flex-1 bg-[#3b82f6] hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg text-xs sm:text-sm flex items-center justify-center transition-colors shadow-xs"
+                  >
+                    Back to Dashboard
+                    <FiArrowRight className="ml-1.5 text-sm" />
+                  </button>
+                  <button 
+                    onClick={() => navigate('/dashboard/projects')} 
+                    className="flex-1 bg-white border border-[#3b82f6] text-[#3b82f6] hover:bg-blue-50 font-medium py-2.5 px-4 rounded-lg text-xs sm:text-sm flex items-center justify-center transition-colors"
+                  >
+                    View Project Details
+                  </button>
+                </div>
+                
+                {/* Footer text */}
+                <div className="flex items-center text-[9px] font-bold text-gray-400 mt-5 tracking-wider uppercase">
+                  <BiShieldAlt2 className="mr-1 text-sm text-gray-400" />
+                  END-TO-END ENCRYPTED DATA PROCESSING
+                </div>
               </div>
             </div>
           </div>

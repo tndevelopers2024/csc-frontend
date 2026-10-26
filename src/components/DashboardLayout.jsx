@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BiHomeAlt, BiFile, BiFolder, BiCreditCard, BiBell, BiCog, BiSupport, BiHelpCircle } from 'react-icons/bi';
 import { FiPlus } from 'react-icons/fi';
@@ -112,10 +112,13 @@ export default function DashboardLayout() {
           <img src="/images/logo.png" alt="ConvertScanToCAD" className="h-12 object-contain" />
         </div>
         <div className="flex items-center space-x-6 text-gray-600">
-          <a href="#" className="flex items-center hover:text-blue-600 transition-colors text-sm font-medium">
+          <Link 
+            to="/dashboard/support" 
+            className="flex items-center hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
+          >
             <BiHelpCircle className="text-xl mr-2" />
             Help Center
-          </a>
+          </Link>
           <button 
             onClick={() => navigate('/dashboard/notifications')}
             className="relative hover:text-blue-600 transition-colors"

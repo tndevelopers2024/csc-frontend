@@ -17,6 +17,7 @@ import AdminQuoteDetails from './pages/AdminQuoteDetails';
 import AdminConfigurations from './pages/AdminConfigurations';
 import AdminCustomers from './pages/AdminCustomers';
 import AdminCustomerDetails from './pages/AdminCustomerDetails';
+import AdminTickets from './pages/AdminTickets';
 
 import { SocketProvider } from './context/SocketContext';
 import ScrollToTop from './components/ScrollToTop';
@@ -38,6 +39,7 @@ function App() {
           <Route path="quotes/:id" element={<AdminQuoteDetails />} />
           <Route path="customers" element={<AdminCustomers />} />
           <Route path="customers/:id" element={<AdminCustomerDetails />} />
+          <Route path="tickets" element={<AdminTickets />} />
           <Route path="configurations" element={<AdminConfigurations />} />
         </Route>
 

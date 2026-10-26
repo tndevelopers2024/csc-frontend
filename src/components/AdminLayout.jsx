@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BiHomeAlt, BiUser, BiCog, BiLogOut, BiBell } from 'react-icons/bi';
+import { BiHomeAlt, BiUser, BiCog, BiLogOut, BiBell, BiSupport, BiHelpCircle } from 'react-icons/bi';
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io';
 import { useSocket } from '../context/SocketContext';
 
@@ -57,6 +57,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Dashboard', icon: <BiHomeAlt />, path: '/admin/dashboard' },
     { name: 'Customers', icon: <BiUser />, path: '/admin/customers' },
+    { name: 'Support Tickets', icon: <BiSupport />, path: '/admin/tickets' },
     { name: 'Configurations', icon: <BiCog />, path: '/admin/configurations' },
   ];
 
@@ -69,6 +70,13 @@ export default function AdminLayout() {
           <img src="/images/logo.png" alt="Logo" className="h-12 object-contain" />
         </div>
         <div className="flex items-center space-x-6 text-gray-600">
+          <Link 
+            to="/admin/tickets" 
+            className="flex items-center hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
+          >
+            <BiHelpCircle className="text-xl mr-2" />
+            Help Center
+          </Link>
           <button className="relative hover:text-blue-600 transition-colors">
             <BiBell className="text-2xl" />
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-sm">3</span>

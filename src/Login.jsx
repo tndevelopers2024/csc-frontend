@@ -53,7 +53,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       {/* Main Container */}
-      <div className="bg-white rounded-2xl shadow-2xl flex flex-col lg:flex-row w-full max-w-7xl overflow-hidden min-h-[850px]">
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col lg:flex-row w-full overflow-hidden">
         
         {/* Left Side - Promo Panel */}
         <div className="bg-[#0b1f47] text-white p-10 lg:w-1/2 flex flex-col justify-start m-2 rounded-2xl">
