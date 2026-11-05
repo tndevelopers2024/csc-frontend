@@ -67,7 +67,7 @@ export default function Quotations() {
     }
   };
 
-  const updateProjectStatus = async (newStatus, file = null) => {
+  const updateProjectStatus = async (newStatus, file = null, extraData = {}) => {
     try {
       const token = localStorage.getItem('token');
       let options = {
@@ -81,10 +81,12 @@ export default function Quotations() {
         const formData = new FormData();
         formData.append('status', newStatus);
         formData.append('poFile', file);
+        if (extraData?.reason) formData.append('reason', extraData.reason);
+        if (extraData?.description) formData.append('description', extraData.description);
         options.body = formData;
       } else {
         options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify({ status: newStatus });
+        options.body = JSON.stringify({ status: newStatus, ...extraData });
       }
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${selectedQuoteId}/status`, options);
@@ -112,7 +114,7 @@ export default function Quotations() {
 
   const handleRevisionSubmit = async (data) => {
     setRevisionModalOpen(false);
-    await updateProjectStatus('Revision Requested');
+    await updateProjectStatus('Revision Requested', null, data);
   };
 
   const renderStatus = (status) => {

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Signup from './Signup';
 import Login from './Login';
+import ResetPassword from './pages/ResetPassword';
 import DashboardLayout from './components/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import Quotations from './pages/Quotations';
@@ -31,6 +32,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminLayout />}>

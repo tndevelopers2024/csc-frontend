@@ -2,11 +2,53 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { BsCloudUpload } from 'react-icons/bs';
 import { BiChevronRight, BiShieldAlt2 } from 'react-icons/bi';
-import { FiArrowRight, FiArrowLeft, FiTrash2, FiFileText, FiLink, FiBox, FiSettings } from 'react-icons/fi';
+import { FiArrowRight, FiArrowLeft, FiTrash2, FiFileText, FiLink, FiBox, FiSettings, FiTag, FiCheck } from 'react-icons/fi';
 import { IoInformationCircleOutline } from 'react-icons/io5';
 import { TbScan } from 'react-icons/tb';
 import { FaCheck } from 'react-icons/fa';
-const CustomDropdown = ({ options, placeholder, value, onChange }) => {
+const InfoTooltip = ({ content, title, className = "" }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div 
+      className={`relative inline-flex items-center ml-1.5 ${className}`}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsVisible(prev => !prev);
+        }}
+        className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none flex items-center cursor-pointer pointer-events-auto"
+        aria-label="Information"
+      >
+        <IoInformationCircleOutline className="text-base" />
+      </button>
+
+      {isVisible && (
+        <div 
+          className="absolute bottom-full left-1/2 -translate-x-1/2 pb-2.5 z-50 pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-72 p-3.5 sm:p-4 bg-white rounded-xl shadow-xl border border-gray-200 text-left font-normal cursor-default text-gray-700 text-xs sm:text-[13px] leading-relaxed">
+            {title && (
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-base select-none leading-none">💡</span>
+                <h4 className="text-sm font-bold text-gray-900">{title}</h4>
+              </div>
+            )}
+            <p>{content}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustomDropdown = ({ options, placeholder, value, onChange, optionIcons }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -20,49 +62,80 @@ const CustomDropdown = ({ options, placeholder, value, onChange }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const selectedIcon = optionIcons && value ? optionIcons[value] : null;
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div 
         className={`w-full border px-4 py-2.5 text-sm cursor-pointer flex justify-between items-center bg-white ${isOpen ? 'border-blue-400 rounded-t-md border-b-blue-100' : 'border-gray-300 rounded-md'} ${!value ? 'text-gray-600' : 'text-gray-800'}`}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span>{value || placeholder}</span>
-        <BiChevronRight className={`text-xl transition-transform text-gray-500 ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
+        <span className="flex items-center gap-2.5 truncate">
+          {selectedIcon && (
+            <img 
+              src={selectedIcon} 
+              alt="" 
+              className="w-5 h-5 object-contain shrink-0" 
+            />
+          )}
+          <span className="truncate">{value || placeholder}</span>
+        </span>
+        <BiChevronRight className={`text-xl transition-transform text-gray-500 shrink-0 ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
       </div>
 
       {isOpen && (
         <div className="absolute z-50 w-full border border-t-0 border-blue-400 rounded-b-md shadow-lg overflow-hidden bg-white top-[100%] max-h-60 overflow-y-auto">
-          {options.map((option, idx) => (
-            <div 
-              key={idx}
-              className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-[#e6f0fd] text-gray-800 ${value === option ? 'bg-[#e6f0fd]' : 'bg-white'}`}
-              onClick={() => {
-                onChange(option);
-                setIsOpen(false);
-              }}
-            >
-              {option}
-            </div>
-          ))}
+          {options.map((option, idx) => {
+            const label = typeof option === 'string' ? option : option.label;
+            const optVal = typeof option === 'string' ? option : option.value;
+            const icon = optionIcons ? optionIcons[optVal] : (option.icon || null);
+
+            return (
+              <div 
+                key={idx}
+                className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-[#e6f0fd] text-gray-800 flex items-center gap-2.5 ${value === optVal ? 'bg-[#e6f0fd]' : 'bg-white'}`}
+                onClick={() => {
+                  onChange(optVal);
+                  setIsOpen(false);
+                }}
+              >
+                {icon && (
+                  <img 
+                    src={icon} 
+                    alt="" 
+                    className="w-5 h-5 object-contain shrink-0" 
+                  />
+                )}
+                <span className="truncate">{label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 };
 
+const SOFTWARE_ICONS = {
+  'Solidworks: .sldprt': '/images/user-dashboard/solidworks.png',
+  'Creo: .prt': '/images/user-dashboard/creo.png',
+  'Inventor: .iam, ipt': '/images/user-dashboard/inventor.png',
+  'Siemens NX: .prt': '/images/user-dashboard/siemens.png'
+};
+
 const SOFTWARE_VERSIONS = {
   'Solidworks: .sldprt': [
-    '2026', '2025', '2024', '2023', '2022', '2021', '2020',
+    'Latest version', '2026', '2025', '2024', '2023', '2022', '2021', '2020',
     '2019', '2018', '2017', '2016', '2015', '2014', '2013', '2012', '2011'
   ],
   'Creo: .prt': [
-    '12.0', '11.0', '10.0', '9.0', '8.0', '7.0', '6.0', '5.0'
+    'Latest version', '12.0', '11.0', '10.0', '9.0', '8.0', '7.0', '6.0', '5.0'
   ],
   'Inventor: .iam, ipt': [
-    '2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'
+    'Latest version', '2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'
   ],
   'Siemens NX: .prt': [
-    'NX 10', 'NX 11', 'NX 12', 'Higher Versions'
+    'Latest version', 'NX 10', 'NX 11', 'NX 12', 'Higher Versions'
   ]
 };
 
@@ -92,8 +165,64 @@ export default function NewProject() {
     software: '',
     version: '',
     cadNeutralFiles: false,
-    drafting2D: false
+    drafting2D: false,
+    couponCode: ''
   });
+
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [couponError, setCouponError] = useState('');
+  const [userAvailableCoupons, setUserAvailableCoupons] = useState([]);
+
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/my-available`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const list = await res.json();
+          setUserAvailableCoupons(list);
+        }
+      } catch (err) {
+        console.error('Error fetching available coupons:', err);
+      }
+    };
+    fetchAvailable();
+  }, []);
+
+  const handleVerifyCoupon = async (codeToVerify) => {
+    const code = (codeToVerify || formData.couponCode || '').trim().toUpperCase();
+    if (!code) return;
+    setCouponChecking(true);
+    setCouponError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedCoupon(data.coupon);
+        setFormData(prev => ({ ...prev, couponCode: code }));
+      } else {
+        setCouponError(data.message || 'Invalid or expired coupon code.');
+        setAppliedCoupon(null);
+      }
+    } catch (err) {
+      console.error('Error validating coupon:', err);
+      setCouponError('Network error while validating coupon.');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
 
   const [scanFiles, setScanFiles] = useState([]);
   const [referenceImages, setReferenceImages] = useState([]);
@@ -177,6 +306,54 @@ export default function NewProject() {
     setCurrentStep(4);
   };
 
+  const handleStepClick = (targetStep) => {
+    if (targetStep === currentStep) return;
+
+    if (targetStep < currentStep) {
+      setError('');
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    if (targetStep >= 2) {
+      if (uploadMethod === 'Upload' && scanFiles.length === 0) {
+        setError('Please upload at least one scan file.');
+        setCurrentStep(1);
+        return;
+      }
+      if (uploadMethod === 'Link' && links.filter(l => l.trim() !== '').length === 0) {
+        setError('Please provide at least one cloud/drive link.');
+        setCurrentStep(1);
+        return;
+      }
+    }
+
+    if (targetStep >= 3) {
+      if (!formData.title.trim()) {
+        setError('Project title is required.');
+        setCurrentStep(2);
+        return;
+      }
+      const hasFreeHours = user?.freeHoursRemaining > 0;
+      if (!formData.appType || !formData.accuracy || !formData.partSize || !formData.nda || (hasFreeHours && !formData.useFreeHours)) {
+        setError('Please fill in all required Project Details.');
+        setCurrentStep(2);
+        return;
+      }
+    }
+
+    if (targetStep >= 4) {
+      if (!formData.designIntent && !formData.hybridModelling && !formData.scanToNurbs && !formData.asBuildModelling) {
+        setError('Please select at least one option under Technical Information.');
+        setCurrentStep(3);
+        return;
+      }
+    }
+
+    setError('');
+    setCurrentStep(targetStep);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.title) {
@@ -256,45 +433,56 @@ export default function NewProject() {
       </div>
 
       {/* Stepper */}
-      <div className="bg-white rounded-xl p-6 mb-6 border border-gray-100 shadow-sm">
-        <div className="flex items-center justify-between max-w-5xl mx-auto relative px-4">
+      <div className="bg-white rounded-xl p-6 mb-6 border border-gray-100 shadow-sm overflow-x-auto">
+        <div className="flex items-center justify-between min-w-[650px] max-w-5xl mx-auto relative px-4">
           <div className="absolute top-1/2 left-4 right-4 h-[2px] bg-gray-100 -z-0"></div>
           
-          {/* Step 1 */}
-          <div className="flex items-center z-10 bg-white pr-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 shadow-[0_0_0_8px_white] ${currentStep >= 1 ? 'bg-[#3b82f6] text-white' : 'bg-gray-100 text-gray-400'}`}>1</div>
-            <div className="flex flex-col">
-              <span className={`text-sm font-bold ${currentStep >= 1 ? 'text-gray-900' : 'text-gray-400'}`}>Upload Scan Data</span>
-              <span className={`text-xs ${currentStep >= 1 ? 'text-gray-500' : 'text-gray-400'}`}>Add your files</span>
-            </div>
-          </div>
-          
-          {/* Step 2 */}
-          <div className="flex items-center z-10 bg-white px-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 shadow-[0_0_0_8px_white] border ${currentStep >= 2 ? 'bg-[#3b82f6] text-white border-transparent' : 'bg-white border-gray-200 text-gray-400'}`}>2</div>
-            <div className="flex flex-col">
-              <span className={`text-sm font-bold ${currentStep >= 2 ? 'text-gray-900' : 'text-gray-400'}`}>Project Details</span>
-              <span className={`text-xs ${currentStep >= 2 ? 'text-gray-500' : 'text-gray-400'}`}>Tell us more</span>
-            </div>
-          </div>
-          
-          {/* Step 3 */}
-          <div className="flex items-center z-10 bg-white px-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 shadow-[0_0_0_8px_white] border ${currentStep >= 3 ? 'bg-[#3b82f6] text-white border-transparent' : 'bg-white border-gray-200 text-gray-400'}`}>3</div>
-            <div className="flex flex-col">
-              <span className={`text-sm font-bold ${currentStep >= 3 ? 'text-gray-900' : 'text-gray-400'}`}>Deliverables</span>
-              <span className={`text-xs ${currentStep >= 3 ? 'text-gray-500' : 'text-gray-400'}`}>Set output</span>
-            </div>
-          </div>
-          
-          {/* Step 4 */}
-          <div className="flex items-center z-10 bg-white pl-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 shadow-[0_0_0_8px_white] border ${currentStep >= 4 ? 'bg-[#3b82f6] text-white border-transparent' : 'bg-white border-gray-200 text-gray-400'}`}>4</div>
-            <div className="flex flex-col">
-              <span className={`text-sm font-bold ${currentStep >= 4 ? 'text-gray-900' : 'text-gray-400'}`}>Review & Submit</span>
-              <span className={`text-xs ${currentStep >= 4 ? 'text-gray-500' : 'text-gray-400'}`}>Confirm & send</span>
-            </div>
-          </div>
+          {[
+            { step: 1, title: 'Upload Scan Data', subtitle: 'Add your files' },
+            { step: 2, title: 'Project Details', subtitle: 'Tell us more' },
+            { step: 3, title: 'Deliverables', subtitle: 'Set output' },
+            { step: 4, title: 'Review & Submit', subtitle: 'Confirm & send' },
+          ].map((s, idx) => (
+            <button
+              key={s.step}
+              type="button"
+              onClick={() => handleStepClick(s.step)}
+              className={`flex items-center z-10 bg-white text-left cursor-pointer group focus:outline-none transition-all ${
+                idx === 0 ? 'pr-4' : idx === 3 ? 'pl-4' : 'px-4'
+              }`}
+              title={`Go to step ${s.step}: ${s.title}`}
+            >
+              <div 
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 shadow-[0_0_0_8px_white] border transition-all group-hover:scale-105 ${
+                  currentStep >= s.step 
+                    ? 'bg-[#3b82f6] text-white border-transparent group-hover:bg-blue-600' 
+                    : 'bg-white border-gray-200 text-gray-400 group-hover:border-blue-300 group-hover:text-blue-500'
+                }`}
+              >
+                {s.step}
+              </div>
+              <div className="flex flex-col">
+                <span 
+                  className={`text-sm font-bold transition-colors ${
+                    currentStep >= s.step 
+                      ? 'text-gray-900 group-hover:text-blue-600' 
+                      : 'text-gray-400 group-hover:text-gray-600'
+                  }`}
+                >
+                  {s.title}
+                </span>
+                <span 
+                  className={`text-xs transition-colors ${
+                    currentStep >= s.step 
+                      ? 'text-gray-500' 
+                      : 'text-gray-400'
+                  }`}
+                >
+                  {s.subtitle}
+                </span>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -548,7 +736,10 @@ export default function NewProject() {
                   <div>
                     <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                       Accuracy required
-                      <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                      <InfoTooltip 
+                        title="Why does accuracy matter?"
+                        content="Higher accuracy means more detailed processing and tighter quality requirements. This may increase the CAD hours required for your project."
+                      />
                     </label>
                     <CustomDropdown 
                       options={['High (±0.1mm)', 'Medium (0.3mm)', 'Low (0.5mm)']}
@@ -586,6 +777,70 @@ export default function NewProject() {
                       />
                     </div>
                   )}
+
+                  {/* Coupon Code Section */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FiTag className="text-blue-500 text-sm" /> Coupon Code (Optional)
+                      </span>
+                      {appliedCoupon && (
+                        <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+                          <FiCheck /> {appliedCoupon.hours} hrs will apply
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="Enter coupon code"
+                          value={formData.couponCode || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase();
+                            setFormData({ ...formData, couponCode: val });
+                            if (appliedCoupon && appliedCoupon.code !== val) setAppliedCoupon(null);
+                            setCouponError('');
+                          }}
+                          className="w-full bg-white border border-gray-300 rounded-md px-4 py-2.5 text-sm font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-blue-500"
+                        />
+                        {appliedCoupon && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            ✓ {appliedCoupon.hours} HRS
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleVerifyCoupon()}
+                        disabled={couponChecking || !formData.couponCode?.trim()}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold text-xs rounded-md transition-colors shrink-0"
+                      >
+                        {couponChecking ? 'Checking...' : appliedCoupon ? 'Applied' : 'Apply'}
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-xs text-red-500 mt-1 font-medium">{couponError}</p>
+                    )}
+                    {userAvailableCoupons.length > 0 && !appliedCoupon && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-gray-400 font-medium">Your coupons:</span>
+                        {userAvailableCoupons.map((c) => (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, couponCode: c.code }));
+                              handleVerifyCoupon(c.code);
+                            }}
+                            className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors"
+                          >
+                            {c.code} ({c.hours} hrs)
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               
@@ -629,8 +884,8 @@ export default function NewProject() {
                       onChange={handleCheckboxChange}
                       className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                     />
-                    Design Intent
-                    <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                    <span>Design Intent</span>
+                    <InfoTooltip content="We rebuild the original design by applying dimensions and constraints, ignoring manufacturing errors. This approach is - suited for new product development and allows easy edits in CAD software, keeping design history intact." />
                   </label>
                   <label className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
                     <input 
@@ -640,8 +895,8 @@ export default function NewProject() {
                       onChange={handleCheckboxChange}
                       className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                     />
-                    Hybrid Modelling
-                    <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                    <span>Hybrid Modelling</span>
+                    <InfoTooltip content="We use a mix of as-built/design intent for prismatic shapes and NURBS for organic ones. This method suits parts with both freeform and geometric shapes, allowing accurate CAD conversion and flexible editing in reverse engineering tools." />
                   </label>
                   <label className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
                     <input 
@@ -651,8 +906,8 @@ export default function NewProject() {
                       onChange={handleCheckboxChange}
                       className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                     />
-                    Scan to NURBS
-                    <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                    <span>Scan to NURBS</span>
+                    <InfoTooltip content="We turn scan data into smooth, accurate NURBS surfaces, ideal for organic shapes. Edits can only be made in reverse engineering software, and files are exportable in formats like IGES or STEP for further use." />
                   </label>
                   <label className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
                     <input 
@@ -662,8 +917,8 @@ export default function NewProject() {
                       onChange={handleCheckboxChange}
                       className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                     />
-                    As-Build Modelling
-                    <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                    <span>As-Build Modelling</span>
+                    <InfoTooltip content="We create CAD models that exactly match the scanned object, including any manufacturing errors. This method ensures high accuracy and is ideal for replacing existing parts. The final model can be exported for manufacturing or mold development and edited in Geomagic Design X." />
                   </label>
                 </div>
               </div>
@@ -679,6 +934,7 @@ export default function NewProject() {
                         placeholder="Select Software"
                         value={formData.software}
                         onChange={(val) => setFormData(prev => ({ ...prev, software: val, version: '' }))}
+                        optionIcons={SOFTWARE_ICONS}
                       />
                     </div>
                   </div>
@@ -697,29 +953,29 @@ export default function NewProject() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-gray-100">
-                <label className={`flex items-center text-sm font-medium text-gray-700 cursor-pointer ${(formData.designIntent || formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling) ? '' : 'opacity-50 pointer-events-none'}`}>
+                <label className={`flex items-center text-sm font-medium text-gray-700 ${(formData.designIntent || formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling) ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
                   <input 
                     type="checkbox" 
                     name="cadNeutralFiles"
                     checked={formData.cadNeutralFiles}
                     onChange={handleCheckboxChange}
                     disabled={!(formData.designIntent || formData.hybridModelling || formData.scanToNurbs || formData.asBuildModelling)}
-                    className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
+                    className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                   />
-                  CAD neutral files
-                  <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                  <span>CAD neutral files</span>
+                  <InfoTooltip content="Export files in neutral formats like STEP, IGES that can be opened in any CAD software." />
                 </label>
-                <label className={`flex items-center text-sm font-medium text-gray-700 cursor-pointer ${formData.designIntent ? '' : 'opacity-50 pointer-events-none'}`}>
+                <label className={`flex items-center text-sm font-medium text-gray-700 ${formData.designIntent ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
                   <input 
                     type="checkbox" 
                     name="drafting2D"
                     checked={formData.drafting2D}
                     onChange={handleCheckboxChange}
                     disabled={!formData.designIntent}
-                    className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
+                    className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                   />
-                  2D Drafting (.dwg)
-                  <IoInformationCircleOutline className="text-gray-400 ml-1.5" />
+                  <span>2D Drafting (.dwg)</span>
+                  <InfoTooltip content="Include 2D technical drawings with dimensions and annotations in DWG format." />
                 </label>
               </div>
 
@@ -832,7 +1088,12 @@ export default function NewProject() {
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-gray-400 mb-1">Software</div>
-                      <div className="text-sm font-bold text-gray-900">{formData.software || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
+                      <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        {SOFTWARE_ICONS[formData.software] && (
+                          <img src={SOFTWARE_ICONS[formData.software]} alt="" className="w-4 h-4 object-contain" />
+                        )}
+                        <span>{formData.software || <span className="text-gray-500 italic font-normal">Not specified</span>}</span>
+                      </div>
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-gray-400 mb-1">Version</div>
@@ -892,6 +1153,14 @@ export default function NewProject() {
                       <div className="text-xs font-semibold text-gray-400 mb-1">CAD Free Hours</div>
                       <div className="text-sm font-bold text-gray-900">{formData.useFreeHours || <span className="text-gray-500 italic font-normal">Not specified</span>}</div>
                     </div>
+                    {formData.couponCode && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">Coupon Applied</div>
+                        <div className="text-sm font-bold text-emerald-600 flex items-center gap-1">
+                          <FiTag size={13} /> {formData.couponCode} {appliedCoupon ? `(${appliedCoupon.hours} hrs)` : ''}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

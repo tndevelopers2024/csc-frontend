@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BiDownload, BiUpload, BiLinkAlt } from 'react-icons/bi';
-import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiExternalLink } from 'react-icons/fi';
+import { FiFileText, FiCreditCard, FiX, FiUser, FiLink, FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiClock, FiExternalLink, FiTag, FiMail } from 'react-icons/fi';
 import StlViewer from '../components/StlViewer';
 import { useSocket } from '../context/SocketContext';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import AdminCouponModal from '../components/AdminCouponModal';
 
 export default function AdminQuoteDetails() {
   const { id } = useParams();
@@ -30,6 +31,50 @@ export default function AdminQuoteDetails() {
   const [paymentDeadline, setPaymentDeadline] = useState(null);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
+  // Coupon state
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [userCoupons, setUserCoupons] = useState([]);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const fetchUserCoupons = async (userId) => {
+    if (!userId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/admin/user/${userId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const list = await res.json();
+        setUserCoupons(list);
+      }
+    } catch (err) {
+      console.error('Error fetching user coupons:', err);
+    }
+  };
+
+  const handleShareCouponEmail = async (couponId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/admin/${couponId}/send-email`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Coupon shared to customer via email!');
+      } else {
+        showToast(data.message || 'Failed to send email', 'error');
+      }
+    } catch (err) {
+      console.error('Error sharing coupon email:', err);
+      showToast('Error sharing coupon email', 'error');
+    }
+  };
+
   useEffect(() => {
     const fetchProject = async () => {
       try {
@@ -51,6 +96,10 @@ export default function AdminQuoteDetails() {
             data.scanFiles.forEach((_, i) => { initialHours[i] = data.fileEstimatedHours?.[hourIdx++] || 0; });
           }
           setEstimatedHours(initialHours);
+
+          if (data.userId?._id || data.userId) {
+            fetchUserCoupons(data.userId?._id || data.userId);
+          }
         } else {
           navigate('/admin/dashboard');
         }
@@ -163,16 +212,16 @@ export default function AdminQuoteDetails() {
         const allFilesCompleted = hasScanFiles 
           ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
           : Boolean(project.completedFiles && project.completedFiles.length > 0);
+        const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
         
-        if (!allFilesCompleted) {
-          const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
+        if (!allFilesCompleted || hasPendingUploads) {
           setToast({ 
             type: 'error', 
             message: hasPendingUploads 
               ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first."
               : 'Please upload all completed CAD files before delivering.' 
           });
-          setTimeout(() => setToast(null), 3000);
+          setTimeout(() => setToast(null), 4000);
           return;
         }
       }
@@ -442,7 +491,7 @@ export default function AdminQuoteDetails() {
         ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
         : Boolean(project.completedFiles && project.completedFiles.length > 0);
       const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
-      const deliverDisabled = submitting || !allFilesCompleted;
+      const deliverDisabled = submitting || !allFilesCompleted || hasPendingUploads;
 
       return (
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -452,6 +501,11 @@ export default function AdminQuoteDetails() {
             {!allFilesCompleted && (
               <p className="text-[11px] text-red-500 font-bold mt-1.5 flex items-center gap-1">
                 <FiAlertCircle /> {hasPendingUploads ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first." : "Please upload all completed CAD files before delivering."}
+              </p>
+            )}
+            {hasPendingUploads && allFilesCompleted && (
+              <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
+                <FiAlertCircle /> You have selected new file(s) ready for upload. Please click 'Upload All Selected' above before delivering.
               </p>
             )}
           </div>
@@ -474,7 +528,7 @@ export default function AdminQuoteDetails() {
         ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
         : Boolean(project.completedFiles && project.completedFiles.length > 0);
       const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
-      const deliverDisabled = submitting || !allFilesCompleted;
+      const deliverDisabled = submitting || !allFilesCompleted || hasPendingUploads;
 
       return (
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -484,6 +538,11 @@ export default function AdminQuoteDetails() {
             {!allFilesCompleted && (
               <p className="text-[11px] text-red-500 font-bold mt-1.5 flex items-center gap-1">
                 <FiAlertCircle /> {hasPendingUploads ? "You have selected file(s) that are not uploaded yet. Please click 'Upload All Selected' first." : "Please upload all completed CAD files before delivering."}
+              </p>
+            )}
+            {hasPendingUploads && allFilesCompleted && (
+              <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
+                <FiAlertCircle /> You have selected new file(s) ready for upload. Please click 'Upload All Selected' above before delivering.
               </p>
             )}
           </div>
@@ -523,7 +582,8 @@ export default function AdminQuoteDetails() {
       const allFilesCompleted = hasScanFiles 
         ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
         : Boolean(project.completedFiles && project.completedFiles.length > 0);
-      const deliverDisabled = submitting || !allFilesCompleted;
+      const hasPendingUploads = Object.keys(selectedCompletedFiles).length > 0;
+      const deliverDisabled = submitting || !allFilesCompleted || hasPendingUploads;
 
       return (
         <div className="bg-orange-50 rounded-xl border border-orange-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -533,6 +593,11 @@ export default function AdminQuoteDetails() {
               <h2 className="text-sm font-bold text-orange-950">Customer Reported an Issue</h2>
             </div>
             <p className="text-xs text-orange-800 font-medium">Customer has flagged an issue with the delivered files. Review the notes above, resume CAD production to make fixes, or upload updated files.</p>
+            {hasPendingUploads && (
+              <p className="text-[11px] text-amber-800 font-bold mt-1.5 flex items-center gap-1">
+                <FiAlertCircle /> You have selected new file(s) ready for upload. Please click 'Upload All Selected' above before re-delivering.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <button 
@@ -589,6 +654,49 @@ export default function AdminQuoteDetails() {
         </div>
       </div>
 
+      {/* Customer Revision Request Card */}
+      {(project.status === 'Revision Requested' || project.revisionRequest) && (
+        <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-6 mb-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-amber-200/60 gap-2">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                <FiAlertCircle />
+              </span>
+              <div>
+                <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                  Customer Revision Request
+                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                    Action Required
+                  </span>
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">The client requested adjustments before approving this quote.</p>
+              </div>
+            </div>
+            {project.revisionRequest?.requestedAt && (
+              <span className="text-xs text-gray-500 font-medium">
+                Requested: {new Date(project.revisionRequest.requestedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg p-4 border border-amber-100 shadow-xs">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reason for Revision</p>
+              <p className="text-sm font-bold text-gray-800">
+                {project.revisionRequest?.reason || 'Change in scope or requirements'}
+              </p>
+            </div>
+
+            <div className="md:col-span-2 bg-white rounded-lg p-4 border border-amber-100 shadow-xs">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Customer Explanation / Instructions</p>
+              <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {project.revisionRequest?.description || 'The customer requested a revision on this quote. Please review and update the estimated hours or upload a revised quote PDF below.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Project Details Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -623,10 +731,20 @@ export default function AdminQuoteDetails() {
 
         {/* Customer Information Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="text-blue-500"><FiUser /></span> Customer Information
-          </h2>
-          <div className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+              <span className="text-blue-500"><FiUser /></span> Customer Information
+            </h2>
+            <button
+              onClick={() => setCouponModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+              title="Set a one-time coupon code for this customer"
+            >
+              <FiTag className="text-xs" />
+              <span>Set One-Time Coupon</span>
+            </button>
+          </div>
+          <div className="space-y-3">
             <div>
               <p className="text-[11px] font-bold text-gray-400">Name :</p>
               <p className="text-sm font-medium text-gray-800">{customerName}</p>
@@ -643,6 +761,79 @@ export default function AdminQuoteDetails() {
               <p className="text-[11px] font-bold text-gray-400">Free Hours Remaining :</p>
               <p className="text-sm font-bold text-green-600">{userFreeHours} hrs</p>
             </div>
+
+            {/* Project Applied Coupon if any */}
+            {project.couponApplied?.code && (
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[11px] font-bold text-gray-400 mb-1">Coupon Applied to this Project :</p>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-mono font-bold text-emerald-800 text-xs tracking-wider">{project.couponApplied.code}</span>
+                    <p className="text-[11px] text-emerald-700 font-medium">
+                      {project.couponApplied.hoursApplied || 0} hrs applied (Saved ${project.couponApplied.discountAmount || 0})
+                      {project.couponApplied.hoursRetained > 0 && (
+                        <span className="text-blue-600 font-bold block text-[10px]">
+                          + {project.couponApplied.hoursRetained} hrs retained for customer
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">
+                    REDEEMED
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Active / Assigned Coupons for this User */}
+            <div className="pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] font-bold text-gray-400">Assigned One-Time Coupons :</p>
+                <span className="text-[10px] text-gray-400 font-medium">{userCoupons.length} total</span>
+              </div>
+              {userCoupons.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No one-time coupons assigned yet.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {userCoupons.map((c) => (
+                    <div 
+                      key={c._id}
+                      className={`text-xs p-2 rounded-lg border flex items-center justify-between ${
+                        c.isUsed 
+                          ? 'bg-gray-50 border-gray-200 text-gray-500' 
+                          : 'bg-blue-50/60 border-blue-200 text-gray-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-blue-700">{c.code}</span>
+                        <span className="text-[11px] text-gray-600 font-semibold">
+                          ({c.hours || c.discountValue || 0} hrs)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleShareCouponEmail(c._id)}
+                          className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-100/50 transition-colors"
+                          title="Share coupon code to customer via email"
+                        >
+                          <FiMail size={13} />
+                        </button>
+                        {c.isUsed ? (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-gray-200 text-gray-600">
+                            USED {c.hoursRetained > 0 ? `(${c.hoursRetained}h kept)` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-green-100 text-green-700">
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
@@ -892,7 +1083,12 @@ export default function AdminQuoteDetails() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {project.scanFiles?.map((file, idx) => {
+                {((project.scanFiles && project.scanFiles.length > 0)
+                  ? project.scanFiles
+                  : (project.links && project.links.length > 0)
+                    ? project.links.map((link, i) => ({ originalname: `Link #${i + 1}: ${link.length > 25 ? link.substring(0, 25) + '...' : link}` }))
+                    : [{ originalname: 'CAD Project File' }]
+                ).map((file, idx) => {
                   const uploadedCompleted = project.completedFiles?.[idx];
                   const pendingUpload = selectedCompletedFiles[idx];
                   
@@ -902,43 +1098,86 @@ export default function AdminQuoteDetails() {
                         <BiLinkAlt className="text-gray-400" /> {file.originalname}
                       </td>
                       <td className="py-4 px-4 text-center">
-                        {uploadedCompleted ? (
+                        {pendingUpload ? (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> Ready to Upload
+                          </span>
+                        ) : uploadedCompleted ? (
                           <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-[10px] font-bold">Completed</span>
                         ) : (
                           <span className="px-2 py-0.5 bg-yellow-50 text-yellow-600 rounded text-[10px] font-bold">Pending</span>
                         )}
                       </td>
                       <td className="py-4 px-4 text-center text-xs">
-                        {uploadedCompleted ? (
-                          <span className="text-gray-600 font-medium truncate max-w-[150px] inline-block">{uploadedCompleted.originalname}</span>
-                        ) : pendingUpload ? (
-                          <span className="text-blue-500 font-medium truncate max-w-[150px] inline-block">{pendingUpload.name}</span>
+                        {pendingUpload ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-blue-600 font-bold text-xs truncate max-w-[160px] inline-block">
+                              {pendingUpload.name}
+                            </span>
+                            {uploadedCompleted && (
+                              <span className="text-[10px] text-gray-400 truncate max-w-[160px]">
+                                Replaces: {uploadedCompleted.originalname}
+                              </span>
+                            )}
+                          </div>
+                        ) : uploadedCompleted ? (
+                          <span className="text-gray-700 font-medium truncate max-w-[160px] inline-block">{uploadedCompleted.originalname}</span>
                         ) : (
-                          <span className="text-gray-400">Not uploaded yet</span>
+                          <span className="text-gray-400 italic">Not uploaded yet</span>
                         )}
                       </td>
                       <td className="py-4 px-4 text-right">
-                        {!uploadedCompleted && (
+                        <div className="flex items-center justify-end gap-2">
+                          {uploadedCompleted && (
+                            <button 
+                              type="button"
+                              onClick={() => handleDownload(uploadedCompleted.filename)} 
+                              className="text-[11px] font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded flex items-center gap-1 transition-colors"
+                              title="Download current completed file"
+                            >
+                              <BiDownload size={14} /> Download
+                            </button>
+                          )}
                           <div className="inline-block relative">
                             <input 
                               type="file" 
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                               onChange={(e) => {
                                 if (e.target.files && e.target.files[0]) {
                                   setSelectedCompletedFiles(prev => ({...prev, [idx]: e.target.files[0]}));
                                 }
                               }}
                             />
-                            <button className="text-[11px] font-bold text-blue-500 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded flex items-center gap-1 ml-auto">
-                              <BiUpload /> Select File
+                            <button 
+                              type="button"
+                              className={`text-[11px] font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors ${
+                                pendingUpload 
+                                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200' 
+                                  : uploadedCompleted 
+                                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200' 
+                                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                              }`}
+                            >
+                              <BiUpload size={14} /> {pendingUpload ? 'Change Selection' : uploadedCompleted ? 'Upload New / Replace' : 'Select File'}
                             </button>
                           </div>
-                        )}
-                        {uploadedCompleted && (
-                          <button onClick={() => handleDownload(uploadedCompleted.filename)} className="text-[11px] font-bold text-blue-500 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded flex items-center gap-1 ml-auto">
-                            <BiDownload /> Download
-                          </button>
-                        )}
+                          {pendingUpload && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setSelectedCompletedFiles(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[idx];
+                                  return updated;
+                                });
+                              }}
+                              className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors"
+                              title="Cancel selection"
+                            >
+                              <FiX size={15} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -988,6 +1227,20 @@ export default function AdminQuoteDetails() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin Coupon Modal */}
+      {project.userId && (
+        <AdminCouponModal
+          isOpen={couponModalOpen}
+          onClose={() => setCouponModalOpen(false)}
+          user={project.userId}
+          onCouponCreated={(newCoupon) => {
+            showToast(`Coupon ${newCoupon.code} assigned to customer successfully!`);
+            const uid = project.userId?._id || project.userId;
+            if (uid) fetchUserCoupons(uid);
+          }}
+        />
       )}
 
       {renderFooter()}

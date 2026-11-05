@@ -334,10 +334,6 @@ export default function Projects() {
                               <p className="text-xs font-bold text-gray-900">{new Date(project.createdAt).toLocaleDateString('en-GB')}</p>
                             </div>
                             <div>
-                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1"><FiUsers /> ENGINEER</p>
-                              <p className="text-xs font-bold text-gray-900">A. Kumar</p>
-                            </div>
-                            <div>
                               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                 {isDelivered ? <FiCheck /> : <FiClock />} {isDelivered ? 'DELIVERED' : 'ETA'}
                               </p>
@@ -547,7 +543,7 @@ export default function Projects() {
                       <div className="mb-8">
                         <p className="text-xs font-bold text-gray-600 mb-3">{isDelivered ? 'Delivered Successfully' : 'CAD Production'}</p>
                         <div className="flex items-center gap-4">
-                          <h4 className="text-3xl font-bold text-gray-900 w-16">{getProgressPercent(project.status)}%</h4>
+                          <h4 className="text-2xl font-bold text-gray-900 w-16">{getProgressPercent(project.status)}%</h4>
                           <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${bgClass}`} style={{ width: `${getProgressPercent(project.status)}%` }}></div>
                           </div>

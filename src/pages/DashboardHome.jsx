@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
-import { FiFolder, FiArrowRight, FiGift } from 'react-icons/fi';
+import { FiFolder, FiArrowRight } from 'react-icons/fi';
+import { FaGift } from 'react-icons/fa';
 import { useSocket } from '../context/SocketContext';
 
 export default function DashboardHome() {
@@ -72,17 +73,19 @@ export default function DashboardHome() {
 
       {/* Banner */}
       <div className="bg-[#1f2937] rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 shadow-sm">
-        <div className="flex items-center space-x-3 mb-4 sm:mb-0">
-          {user?.freeHoursRemaining > 0 ? (
-            <>
-              <div className="text-xl flex items-center justify-center"><FiGift /></div>
-              <span className="text-white font-semibold text-base">Free {user.freeHoursRemaining}-hour offer active</span>
-            </>
+        <div className="flex items-center space-x-3.5 mb-4 sm:mb-0">
+          {(user?.freeHoursRemaining === undefined || user?.freeHoursRemaining > 0) ? (
+            <div className="flex items-center gap-3">
+              <FaGift className="text-white text-2xl sm:text-3xl shrink-0" />
+              <span className="text-white font-bold text-lg sm:text-xl tracking-tight">
+                Free {user?.freeHoursRemaining ?? 3}-hour offer active
+              </span>
+            </div>
           ) : (
             <span className="text-white font-semibold text-base">CAD Engineering Services</span>
           )}
         </div>
-        <button onClick={openBuyHoursModal} className="bg-[#facc15] hover:bg-yellow-500 text-gray-900 font-bold px-6 py-2.5 rounded text-sm transition-colors uppercase tracking-wide">
+        <button onClick={openBuyHoursModal} className="bg-[#facc15] hover:bg-yellow-500 text-gray-900 font-bold px-6 py-2.5 rounded text-sm transition-colors uppercase tracking-wide shrink-0">
           Buy More CAD Hours
         </button>
       </div>

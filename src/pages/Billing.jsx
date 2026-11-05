@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown, FiClock, FiAlertCircle } from 'react-icons/fi';
+import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown, FiClock, FiAlertCircle, FiTag, FiGift, FiCheck } from 'react-icons/fi';
 import { BiHistory, BiReceipt } from 'react-icons/bi';
 import { HiOutlineDocumentText } from 'react-icons/hi';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
@@ -11,6 +11,61 @@ export default function Billing() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
+
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMsg, setCouponMsg] = useState(null);
+  const [myCoupons, setMyCoupons] = useState([]);
+
+  const fetchMyCoupons = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/my-available`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyCoupons(data);
+      }
+    } catch (err) {
+      console.error('Error fetching available coupons', err);
+    }
+  };
+
+  const handleRedeemCoupon = async (codeToRedeem) => {
+    const code = (codeToRedeem || couponCode).trim().toUpperCase();
+    if (!code) return;
+
+    setCouponLoading(true);
+    setCouponMsg(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/coupons/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setCouponMsg({ type: 'success', text: data.message });
+        setCouponCode('');
+        fetchMyCoupons();
+      } else {
+        setCouponMsg({ type: 'error', text: data.message || 'Failed to redeem coupon.' });
+      }
+    } catch (err) {
+      console.error('Error redeeming coupon:', err);
+      setCouponMsg({ type: 'error', text: 'Network error while redeeming coupon.' });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
 
   const handlePayment = async (projectsToPay) => {
     try {
@@ -54,6 +109,7 @@ export default function Billing() {
       }
     };
     fetchProjects();
+    fetchMyCoupons();
   }, []);
 
   const tabs = ['Overview', 'CAD Usage History', 'Invoice History'];
@@ -148,6 +204,67 @@ export default function Billing() {
                 {totalOutstanding > 0 && <FiAlertCircle className="text-[#f97316] text-xl" />}
               </div>
             </div>
+          </div>
+
+          {/* One-Time CAD Hours Coupon Redemption Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <FiTag size={20} />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Have a CAD Hours Coupon Code?</h3>
+                  <p className="text-xs text-gray-500">
+                    Redeem your admin-issued one-time coupon here to add CAD hours directly to your free hours balance, or apply it during quote approval.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  placeholder="ENTER COUPON CODE"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-blue-500 min-w-[200px]"
+                />
+                <button
+                  onClick={() => handleRedeemCoupon()}
+                  disabled={couponLoading || !couponCode.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  {couponLoading ? 'Redeeming...' : 'Redeem to Account'}
+                </button>
+              </div>
+            </div>
+
+            {couponMsg && (
+              <div className={`mt-3 p-3 rounded-lg text-xs font-medium ${
+                couponMsg.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {couponMsg.text}
+              </div>
+            )}
+
+            {myCoupons.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-gray-500 font-medium">Available Coupons:</span>
+                {myCoupons.map((c) => (
+                  <button
+                    key={c._id}
+                    onClick={() => handleRedeemCoupon(c.code)}
+                    disabled={couponLoading}
+                    className="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition-colors flex items-center gap-1"
+                    title="Click to redeem directly to your account"
+                  >
+                    <FiGift size={11} /> {c.code} ({c.hours || c.discountValue || 0} hrs)
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Alert Banner */}

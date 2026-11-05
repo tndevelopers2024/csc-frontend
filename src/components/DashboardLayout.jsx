@@ -60,9 +60,14 @@ export default function DashboardLayout() {
     if (socket) {
       socket.on('newNotification', fetchNotifications);
       socket.on('notificationsUpdated', fetchNotifications);
+      const handleUserUpdated = (updatedUser) => {
+        setUser(updatedUser);
+      };
+      socket.on('userUpdated', handleUserUpdated);
       return () => {
         socket.off('newNotification', fetchNotifications);
         socket.off('notificationsUpdated', fetchNotifications);
+        socket.off('userUpdated', handleUserUpdated);
       };
     }
   }, [navigate, socket]);

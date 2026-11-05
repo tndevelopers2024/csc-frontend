@@ -124,7 +124,7 @@ export default function ProjectDetails() {
   const stlUrl = stlFile ? `${baseUrl}/uploads/${stlFile.filename}` : null;
 
   // Handlers for modals
-  const updateProjectStatus = async (newStatus, file = null) => {
+  const updateProjectStatus = async (newStatus, file = null, extraData = {}) => {
     try {
       const token = localStorage.getItem('token');
       let options = {
@@ -138,10 +138,12 @@ export default function ProjectDetails() {
         const formData = new FormData();
         formData.append('status', newStatus);
         formData.append('poFile', file);
+        if (extraData?.reason) formData.append('reason', extraData.reason);
+        if (extraData?.description) formData.append('description', extraData.description);
         options.body = formData;
       } else {
         options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify({ status: newStatus });
+        options.body = JSON.stringify({ status: newStatus, ...extraData });
       }
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${project._id}/status`, options);
@@ -174,7 +176,7 @@ export default function ProjectDetails() {
   const handleRevisionSubmit = async (data) => {
     console.log("Revision requested:", data);
     setRevisionModalOpen(false);
-    await updateProjectStatus('Revision Requested');
+    await updateProjectStatus('Revision Requested', null, data);
   };
 
   const handleInvoicePayment = async () => {
@@ -285,7 +287,7 @@ export default function ProjectDetails() {
           </div>
 
           <div className="flex flex-col gap-3 w-[320px]">
-            {['Quote Ready', 'Revision Requested', 'Rejected'].includes(project.status) && (
+            {project.status === 'Quote Ready' && (
               <>
                 <div className="flex gap-3">
                   <button 
@@ -1146,12 +1148,20 @@ export default function ProjectDetails() {
             {project.billableHours > 0 && project.poFile && (
               <div className="rounded-xl shadow-lg p-6 flex flex-col items-center">
                 <p className="text-xs text-gray-400 font-medium mb-4">Pay your invoice amount here.</p>
+                {project.couponApplied?.code && (
+                  <div className="mb-3 w-full bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2.5 text-xs flex justify-between items-center">
+                    <span>Coupon applied: <strong className="font-mono">{project.couponApplied.code}</strong></span>
+                    <span className="font-bold">-${project.couponApplied.discountAmount}</span>
+                  </div>
+                )}
                 <div className="w-full relative z-10 min-h-[48px]">
                   <PayPalScriptProvider options={{ "client-id": "test", currency: "USD" }}>
                     <PayPalButtons
                       style={{ layout: "vertical", shape: "rect", height: 48, label: "pay" }}
                       createOrder={(data, actions) => {
-                        const totalCost = (project.billableHours || 0) * 50;
+                        const originalCost = (project.billableHours || 0) * 50;
+                        const discount = project.couponApplied?.discountAmount || 0;
+                        const totalCost = Math.max(0, originalCost - discount);
                         return actions.order.create({
                           purchase_units: [
                             {
