@@ -314,14 +314,14 @@ export default function Billing() {
           </div>
 
           {/* Bottom Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             
-            {/* Project Billing */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            {/* Project Billing - Leftside scrollable container */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[520px]">
+              <div className="p-4 px-5 border-b border-gray-100 flex justify-between items-center shrink-0 bg-white">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Project Billing — {currentMonthName}</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Project invoices, billing details and direct payment</p>
+                  <h2 className="text-base font-bold text-gray-900">Project Billing — {currentMonthName}</h2>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Project invoices, billing details and direct payment</p>
                 </div>
                 {currentMonthTotalDue > 0 && (
                   <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
@@ -329,9 +329,9 @@ export default function Billing() {
                   </span>
                 )}
               </div>
-              <div className="flex-1 p-6 flex flex-col min-h-[300px]">
+              <div className="flex-1 p-4 overflow-y-auto min-h-0">
                 {projectBillingList.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-2.5">
                     {projectBillingList.map((p) => {
                       const shortId = `CSC-${p._id.substring(p._id.length - 8).toUpperCase()}`;
                       const invNumber = `INV-${p._id.substring(p._id.length - 6).toUpperCase()}`;
@@ -346,98 +346,83 @@ export default function Billing() {
                       const latestInvoice = hasInvoicePdf ? p.invoiceFiles[p.invoiceFiles.length - 1] : null;
 
                       return (
-                        <div key={p._id} className="border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-all bg-white shadow-sm flex flex-col gap-4">
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <Link 
-                                  to={`/dashboard/projects/${p._id}`}
-                                  className="text-base font-bold text-gray-900 hover:text-blue-600 transition-colors"
-                                >
-                                  {p.title}
-                                </Link>
-                                <span className="text-[11px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                  {shortId}
-                                </span>
-                                <span className="text-[11px] font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-bold border border-blue-100">
-                                  {invNumber}
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                {p.paymentDeadline ? (
-                                  <span>PO Date: <strong className="text-gray-700">{new Date(p.paymentDeadline).toLocaleDateString('en-GB')}</strong></span>
-                                ) : (
-                                  <span>Created: <strong className="text-gray-700">{new Date(p.createdAt).toLocaleDateString('en-GB')}</strong></span>
-                                )}
-                              </p>
+                        <div key={p._id} className="border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-sm transition-all bg-white flex flex-col gap-2">
+                          {/* Row 1: Title, IDs, and Status badge */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Link 
+                                to={`/dashboard/projects/${p._id}`}
+                                className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors truncate max-w-[170px] sm:max-w-[220px]"
+                              >
+                                {p.title}
+                              </Link>
+                              <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
+                                {shortId}
+                              </span>
+                              <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-bold border border-blue-100 shrink-0">
+                                {invNumber}
+                              </span>
                             </div>
 
-                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <div className="shrink-0">
                               {isPaid ? (
-                                <span className="text-[11px] font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200 flex items-center gap-1">
-                                  <FiCheck size={12} /> Paid
+                                <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
+                                  <FiCheck size={11} /> Paid
                                 </span>
                               ) : isCompleted ? (
-                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                   Project Completed
                                 </span>
                               ) : hasPoDate ? (
-                                <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                   isPoDue ? 'text-red-700 bg-red-50 border-red-200' : 'text-blue-700 bg-blue-50 border-blue-200'
                                 }`}>
                                   {isPoDue ? 'PO Due Today' : 'PO Active'}
                                 </span>
                               ) : (
-                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                                   {p.status}
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          {/* Invoice breakdown */}
-                          <div className="bg-gray-50/80 rounded-lg p-3 text-xs border border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <div>
-                              <span className="text-[10px] uppercase font-bold text-gray-400 block">Rate & Hours</span>
-                              <span className="font-semibold text-gray-800">{p.billableHours || 0} hrs @ $50/hr</span>
-                            </div>
-                            {p.freeHoursApplied > 0 && (
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-gray-400 block">Free Hours</span>
-                                <span className="font-semibold text-blue-600">-{p.freeHoursApplied} hrs ($0)</span>
-                              </div>
-                            )}
-                            <div>
-                              <span className="text-[10px] uppercase font-bold text-gray-400 block">Amount Due</span>
-                              <span className="font-bold text-gray-900 text-sm">${finalCost.toFixed(2)}</span>
-                            </div>
-                          </div>
+                          {/* Row 2: Billing specs, link, and Pay Now button */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-gray-100 text-xs">
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-gray-500">
+                              <span>
+                                {p.paymentDeadline ? (
+                                  <>PO Date: <strong className="text-gray-700 font-medium">{new Date(p.paymentDeadline).toLocaleDateString('en-GB')}</strong></>
+                                ) : (
+                                  <>Created: <strong className="text-gray-700 font-medium">{new Date(p.createdAt).toLocaleDateString('en-GB')}</strong></>
+                                )}
+                              </span>
+                              <span className="text-gray-300">•</span>
+                              <span>{p.billableHours || 0} hrs @ $50/hr</span>
+                              <span className="text-gray-300">•</span>
+                              <span className="font-bold text-gray-900">${finalCost.toFixed(2)}</span>
 
-                          {p.couponApplied?.code && (
-                            <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg flex justify-between items-center font-medium">
-                              <span>Coupon Applied: <strong>{p.couponApplied.code}</strong></span>
-                              <span className="font-bold">-${discount.toFixed(2)}</span>
-                            </div>
-                          )}
+                              {p.couponApplied?.code && (
+                                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 font-medium">
+                                  Coupon -${discount.toFixed(0)}
+                                </span>
+                              )}
 
-                          {/* Footer Actions */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-gray-100">
-                            <div>
                               {hasInvoicePdf ? (
                                 <a
                                   href={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${latestInvoice.filename}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors border border-blue-200"
+                                  className="text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-1 ml-1"
                                 >
-                                  <FiDownload size={14} /> Download Invoice PDF
+                                  <FiDownload size={12} /> PDF
                                 </a>
                               ) : (
                                 <Link
                                   to={`/dashboard/projects/${p._id}`}
-                                  className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                                  className="text-gray-400 hover:text-blue-600 font-medium ml-1"
                                 >
-                                  <HiOutlineDocumentText size={15} /> View Project Details & Quote
+                                  Details
                                 </Link>
                               )}
                             </div>
@@ -445,9 +430,9 @@ export default function Billing() {
                             {!isPaid && (
                               <button
                                 onClick={() => setSelectedProjectToPay(p)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3.5 rounded-md shadow-sm transition-all flex items-center justify-center gap-1.5 self-end sm:self-auto shrink-0"
                               >
-                                <MdOutlinePayments size={16} /> Pay Now (${finalCost.toFixed(2)})
+                                <MdOutlinePayments size={14} /> Pay Now (${finalCost.toFixed(2)})
                               </button>
                             )}
                           </div>
@@ -456,7 +441,7 @@ export default function Billing() {
                     })}
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+                  <div className="flex-1 h-full flex flex-col items-center justify-center py-16 text-center">
                     <BiReceipt className="text-4xl text-[#3b82f6] mb-3" />
                     <p className="text-sm font-semibold text-gray-700">No completed project billing found</p>
                     <p className="text-xs text-gray-400 mt-1 max-w-xs leading-relaxed">
@@ -468,11 +453,11 @@ export default function Billing() {
             </div>
 
             {/* Outstanding Invoices */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900">Outstanding Invoices</h2>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[520px]">
+              <div className="p-4 px-5 border-b border-gray-100 shrink-0">
+                <h2 className="text-base font-bold text-gray-900">Outstanding Invoices</h2>
               </div>
-              <div className="flex-1 p-8 pb-6 flex flex-col items-center justify-center">
+              <div className="flex-1 p-6 pb-6 flex flex-col items-center justify-center overflow-y-auto">
                 {outstandingProjects.length > 0 ? (
                   <>
                     <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
