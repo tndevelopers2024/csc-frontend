@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown, FiClock, FiAlertCircle, FiTag, FiGift, FiCheck } from 'react-icons/fi';
-import { BiHistory, BiReceipt } from 'react-icons/bi';
+import { FiCalendar, FiFileText, FiCheckCircle, FiSearch, FiChevronDown, FiClock, FiAlertCircle, FiTag, FiGift, FiCheck, FiX, FiDownload } from 'react-icons/fi';
+import { BiHistory, BiReceipt, BiDownload } from 'react-icons/bi';
 import { HiOutlineDocumentText } from 'react-icons/hi';
+import { MdOutlinePayments } from 'react-icons/md';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 
 export default function Billing() {
@@ -11,6 +12,7 @@ export default function Billing() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPaying, setIsPaying] = useState(false);
+  const [selectedProjectToPay, setSelectedProjectToPay] = useState(null);
 
   // Coupon state
   const [couponCode, setCouponCode] = useState('');
@@ -117,28 +119,61 @@ export default function Billing() {
   // Calculations
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
   
+  // Helper: whether quote was accepted and project is active/in-progress/completed (not unaccepted quotes)
+  const isAcceptedOrActive = (p) => !['Pending Quote', 'Quote Ready', 'Revision Requested', 'Rejected', 'Under Review'].includes(p.status);
+
+  // Helper: whether project is completed or delivered
+  const isProjectCompleted = (p) => ['Completed', 'Delivered'].includes(p.status) || (p.completedFiles && p.completedFiles.length > 0);
+
   const thisMonthProjects = projects.filter(p => {
     const d = new Date(p.createdAt);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return isAcceptedOrActive(p) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
 
   const thisMonthHours = thisMonthProjects.reduce((sum, p) => sum + (p.billableHours || p.estimatedHours || 0) + (p.freeHoursApplied || 0), 0);
   
   const freeHoursRemaining = user?.freeHoursRemaining || 0;
-  const freeHoursUsed = projects.reduce((sum, p) => sum + (p.freeHoursApplied || 0), 0);
-  const maxFreeHours = freeHoursRemaining + freeHoursUsed;
+  const freeHoursUsed = projects
+    .filter(isAcceptedOrActive)
+    .reduce((sum, p) => sum + (p.freeHoursApplied || 0), 0);
+  const maxFreeHours = Math.max(3, freeHoursRemaining + freeHoursUsed);
   const freeHoursPercent = maxFreeHours === 0 ? 0 : Math.min(100, (freeHoursUsed / maxFreeHours) * 100);
-
-  const unpaidProjects = projects.filter(p => p.billableHours > 0);
-  const totalOutstanding = unpaidProjects.reduce((sum, p) => sum + (p.billableHours * 50), 0);
   
-  const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' });
-  const currentMonthUnpaid = unpaidProjects.filter(p => {
-    const d = new Date(p.createdAt);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  // Free hours card should be removed once it's used
+  const isFreeHoursUsed = freeHoursRemaining <= 0 || (freeHoursUsed >= 3 && freeHoursRemaining <= 0);
+
+  // An invoice should NOT be an outstanding invoice before the PO date or before project completion.
+  // Unaccepted quotes (e.g. Quote Ready, Revision Requested) must NEVER be treated as outstanding invoices.
+  const isInvoiceOutstanding = (p) => {
+    if (!p.billableHours || p.billableHours <= 0) return false;
+    if (!isAcceptedOrActive(p)) return false; // Quote not accepted yet
+    const now = new Date();
+    const isCompleted = isProjectCompleted(p);
+    const isPoDateReached = Boolean(p.paymentDeadline && now >= new Date(p.paymentDeadline));
+    return isCompleted || isPoDateReached;
+  };
+
+  const outstandingProjects = projects.filter(isInvoiceOutstanding);
+  const totalOutstanding = outstandingProjects.reduce((sum, p) => {
+    const originalCost = (p.billableHours || 0) * 50;
+    const discount = p.couponApplied?.discountAmount || 0;
+    return sum + Math.max(0, originalCost - discount);
+  }, 0);
+
+  // Once the project is completed, then only show the project billing & pay option here
+  const projectBillingList = projects.filter(p => {
+    return isProjectCompleted(p);
   });
-  const currentMonthTotal = currentMonthUnpaid.reduce((sum, p) => sum + (p.billableHours * 50), 0);
+
+  const currentMonthTotalDue = projectBillingList
+    .filter(p => p.billableHours > 0)
+    .reduce((sum, p) => {
+      const originalCost = (p.billableHours || 0) * 50;
+      const discount = p.couponApplied?.discountAmount || 0;
+      return sum + Math.max(0, originalCost - discount);
+    }, 0);
 
   return (
     <div className="max-w-8xl mx-auto pb-12">
@@ -146,11 +181,12 @@ export default function Billing() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <h1 className="text-3xl font-bold text-[#1e293b]">CAD wallet & Billing</h1>
         
-        {activeTab !== 'Overview' && (
-          <button onClick={openBuyHoursModal} className="bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-md shadow-sm transition-colors flex items-center shrink-0 w-max text-sm">
-            <span className="mr-1 text-lg font-normal">+</span> Buy CAD Hours
-          </button>
-        )}
+        <button 
+          onClick={openBuyHoursModal} 
+          className="bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-md shadow-sm transition-colors flex items-center shrink-0 w-max text-sm gap-2"
+        >
+          <FiClock className="text-base" /> Buy CAD Hours
+        </button>
       </div>
 
       {/* Tabs */}
@@ -178,7 +214,7 @@ export default function Billing() {
         <PayPalScriptProvider options={{ "client-id": "test", currency: "USD" }}>
         <div className="space-y-6">
           {/* Top Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`grid grid-cols-1 ${!isFreeHoursUsed ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6`}>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">This Month's CAD Hours Usage</h3>
               <div className="flex items-baseline space-x-1">
@@ -187,20 +223,24 @@ export default function Billing() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Free Hours Used</h3>
-                <span className="text-[13px] font-bold text-[#3b82f6]">{freeHoursUsed}/{maxFreeHours} hrs</span>
+            {!isFreeHoursUsed && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Free Hours Used</h3>
+                  <span className="text-[13px] font-bold text-[#3b82f6]">{freeHoursUsed}/{maxFreeHours} hrs</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-auto">
+                  <div className="bg-[#3b82f6] h-1.5 rounded-full transition-all duration-500" style={{ width: `${freeHoursPercent}%` }}></div>
+                </div>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-auto">
-                <div className="bg-[#3b82f6] h-1.5 rounded-full transition-all duration-500" style={{ width: `${freeHoursPercent}%` }}></div>
-              </div>
-            </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Outstanding Balance</h3>
               <div className="flex items-center gap-2">
-                <div className="text-4xl font-bold text-[#f97316]">${totalOutstanding.toFixed(2)}</div>
+                <div className={`text-4xl font-bold ${totalOutstanding > 0 ? 'text-[#f97316]' : 'text-gray-900'}`}>
+                  ${totalOutstanding.toFixed(2)}
+                </div>
                 {totalOutstanding > 0 && <FiAlertCircle className="text-[#f97316] text-xl" />}
               </div>
             </div>
@@ -279,47 +319,149 @@ export default function Billing() {
             {/* Project Billing */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
               <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="text-lg font-bold text-gray-900">Project Billing — {currentMonthName}</h2>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Project Billing — {currentMonthName}</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Project invoices, billing details and direct payment</p>
+                </div>
+                {currentMonthTotalDue > 0 && (
+                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
+                    Total Due: ${currentMonthTotalDue.toFixed(2)}
+                  </span>
+                )}
               </div>
               <div className="flex-1 p-6 flex flex-col min-h-[300px]">
-                {currentMonthUnpaid.length > 0 ? (
-                  <>
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                      {currentMonthUnpaid.map(p => (
-                        <div key={p._id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-                          <span className="text-sm font-medium text-gray-700">{p.title}</span>
-                          <span className="text-sm font-bold text-gray-900">${(p.billableHours * 50).toFixed(2)}</span>
+                {projectBillingList.length > 0 ? (
+                  <div className="space-y-4">
+                    {projectBillingList.map((p) => {
+                      const shortId = `CSC-${p._id.substring(p._id.length - 8).toUpperCase()}`;
+                      const invNumber = `INV-${p._id.substring(p._id.length - 6).toUpperCase()}`;
+                      const isPaid = !p.billableHours || p.billableHours === 0;
+                      const originalCost = (p.billableHours || 0) * 50;
+                      const discount = p.couponApplied?.discountAmount || 0;
+                      const finalCost = Math.max(0, originalCost - discount);
+                      const isCompleted = ['Completed', 'Delivered'].includes(p.status) || (p.completedFiles && p.completedFiles.length > 0);
+                      const hasPoDate = Boolean(p.paymentDeadline);
+                      const isPoDue = hasPoDate && new Date() >= new Date(p.paymentDeadline);
+                      const hasInvoicePdf = p.invoiceFiles && p.invoiceFiles.length > 0;
+                      const latestInvoice = hasInvoicePdf ? p.invoiceFiles[p.invoiceFiles.length - 1] : null;
+
+                      return (
+                        <div key={p._id} className="border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-all bg-white shadow-sm flex flex-col gap-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <Link 
+                                  to={`/dashboard/projects/${p._id}`}
+                                  className="text-base font-bold text-gray-900 hover:text-blue-600 transition-colors"
+                                >
+                                  {p.title}
+                                </Link>
+                                <span className="text-[11px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                  {shortId}
+                                </span>
+                                <span className="text-[11px] font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-bold border border-blue-100">
+                                  {invNumber}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {p.paymentDeadline ? (
+                                  <span>PO Date: <strong className="text-gray-700">{new Date(p.paymentDeadline).toLocaleDateString('en-GB')}</strong></span>
+                                ) : (
+                                  <span>Created: <strong className="text-gray-700">{new Date(p.createdAt).toLocaleDateString('en-GB')}</strong></span>
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                              {isPaid ? (
+                                <span className="text-[11px] font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200 flex items-center gap-1">
+                                  <FiCheck size={12} /> Paid
+                                </span>
+                              ) : isCompleted ? (
+                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                                  Project Completed
+                                </span>
+                              ) : hasPoDate ? (
+                                <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${
+                                  isPoDue ? 'text-red-700 bg-red-50 border-red-200' : 'text-blue-700 bg-blue-50 border-blue-200'
+                                }`}>
+                                  {isPoDue ? 'PO Due Today' : 'PO Active'}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                                  {p.status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Invoice breakdown */}
+                          <div className="bg-gray-50/80 rounded-lg p-3 text-xs border border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-gray-400 block">Rate & Hours</span>
+                              <span className="font-semibold text-gray-800">{p.billableHours || 0} hrs @ $50/hr</span>
+                            </div>
+                            {p.freeHoursApplied > 0 && (
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-gray-400 block">Free Hours</span>
+                                <span className="font-semibold text-blue-600">-{p.freeHoursApplied} hrs ($0)</span>
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-gray-400 block">Amount Due</span>
+                              <span className="font-bold text-gray-900 text-sm">${finalCost.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          {p.couponApplied?.code && (
+                            <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg flex justify-between items-center font-medium">
+                              <span>Coupon Applied: <strong>{p.couponApplied.code}</strong></span>
+                              <span className="font-bold">-${discount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Footer Actions */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-gray-100">
+                            <div>
+                              {hasInvoicePdf ? (
+                                <a
+                                  href={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${latestInvoice.filename}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors border border-blue-200"
+                                >
+                                  <FiDownload size={14} /> Download Invoice PDF
+                                </a>
+                              ) : (
+                                <Link
+                                  to={`/dashboard/projects/${p._id}`}
+                                  className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                                >
+                                  <HiOutlineDocumentText size={15} /> View Project Details & Quote
+                                </Link>
+                              )}
+                            </div>
+
+                            {!isPaid && (
+                              <button
+                                onClick={() => setSelectedProjectToPay(p)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5"
+                              >
+                                <MdOutlinePayments size={16} /> Pay Now (${finalCost.toFixed(2)})
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-end">
-                      <div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Total Due</span>
-                        <span className="text-2xl font-bold text-gray-900">${currentMonthTotal.toFixed(2)}</span>
-                      </div>
-                      <div className="w-[240px] relative z-0 mt-2">
-                        {isPaying ? (
-                          <div className="w-full bg-[#3b82f6] text-white font-medium py-2 rounded text-center shadow-sm text-sm">Processing...</div>
-                        ) : (
-                          <PayPalButtons 
-                            style={{ layout: "horizontal", height: 40, label: "pay" }}
-                            createOrder={(data, actions) => {
-                              return actions.order.create({
-                                purchase_units: [{ amount: { value: currentMonthTotal.toFixed(2) } }]
-                              });
-                            }}
-                            onApprove={(data, actions) => {
-                              return actions.order.capture().then(() => handlePayment(currentMonthUnpaid));
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center">
+                  <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
                     <BiReceipt className="text-4xl text-[#3b82f6] mb-3" />
-                    <p className="text-sm font-medium text-gray-500">No project billing found for this period</p>
+                    <p className="text-sm font-semibold text-gray-700">No completed project billing found</p>
+                    <p className="text-xs text-gray-400 mt-1 max-w-xs leading-relaxed">
+                      Project invoices and direct payment options will appear here once your projects are completed and delivered.
+                    </p>
                   </div>
                 )}
               </div>
@@ -331,12 +473,12 @@ export default function Billing() {
                 <h2 className="text-lg font-bold text-gray-900">Outstanding Invoices</h2>
               </div>
               <div className="flex-1 p-8 pb-6 flex flex-col items-center justify-center">
-                {unpaidProjects.length > 0 ? (
+                {outstandingProjects.length > 0 ? (
                   <>
                     <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
                       <FiAlertCircle className="text-red-500 text-2xl" />
                     </div>
-                    <h3 className="text-base font-bold text-gray-900 mb-2">You have {unpaidProjects.length} overdue invoice{unpaidProjects.length !== 1 ? 's' : ''}</h3>
+                    <h3 className="text-base font-bold text-gray-900 mb-2">You have {outstandingProjects.length} overdue invoice{outstandingProjects.length !== 1 ? 's' : ''}</h3>
                     <p className="text-sm text-gray-500 text-center max-w-sm mb-6 leading-relaxed">
                       Your account is currently in a grace period. Please settle the outstanding balance to avoid service interruption for your operations.
                     </p>
@@ -356,7 +498,7 @@ export default function Billing() {
                             });
                           }}
                           onApprove={(data, actions) => {
-                            return actions.order.capture().then(() => handlePayment(unpaidProjects));
+                            return actions.order.capture().then(() => handlePayment(outstandingProjects));
                           }}
                         />
                       )}
@@ -383,6 +525,92 @@ export default function Billing() {
 
           </div>
         </div>
+
+        {/* Direct Project Invoice Payment Modal */}
+        {selectedProjectToPay && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fadeIn">
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Pay Project Invoice</h3>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    CSC-{selectedProjectToPay._id.substring(selectedProjectToPay._id.length - 8).toUpperCase()} • INV-{selectedProjectToPay._id.substring(selectedProjectToPay._id.length - 6).toUpperCase()}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedProjectToPay(null)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Project</span>
+                  <p className="text-sm font-bold text-gray-900">{selectedProjectToPay.title}</p>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2 text-xs">
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>Billable Hours ({selectedProjectToPay.billableHours || 0} hrs @ $50/hr)</span>
+                    <span className="font-semibold">${((selectedProjectToPay.billableHours || 0) * 50).toFixed(2)}</span>
+                  </div>
+                  {selectedProjectToPay.couponApplied?.code && (
+                    <div className="flex justify-between items-center text-emerald-700 font-bold">
+                      <span>Coupon ({selectedProjectToPay.couponApplied.code})</span>
+                      <span>-${(selectedProjectToPay.couponApplied.discountAmount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-gray-200 pt-2 flex justify-between items-center text-sm font-bold text-gray-900">
+                    <span>Total Amount Due</span>
+                    <span className="text-xl font-bold text-emerald-600">
+                      ${Math.max(0, ((selectedProjectToPay.billableHours || 0) * 50) - (selectedProjectToPay.couponApplied?.discountAmount || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  {isPaying ? (
+                    <div className="w-full bg-[#3b82f6] text-white font-medium py-3 rounded-xl text-center shadow-sm text-sm">
+                      Processing payment...
+                    </div>
+                  ) : (
+                    <PayPalButtons 
+                      style={{ layout: "vertical", height: 45, label: "pay" }}
+                      createOrder={(data, actions) => {
+                        const orig = (selectedProjectToPay.billableHours || 0) * 50;
+                        const disc = selectedProjectToPay.couponApplied?.discountAmount || 0;
+                        const cost = Math.max(0, orig - disc);
+                        return actions.order.create({
+                          purchase_units: [{
+                            description: `Invoice for ${selectedProjectToPay.title}`,
+                            amount: { value: cost.toFixed(2) }
+                          }]
+                        });
+                      }}
+                      onApprove={(data, actions) => {
+                        return actions.order.capture().then(async () => {
+                          await handlePayment([selectedProjectToPay]);
+                          setSelectedProjectToPay(null);
+                        });
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
+                <button
+                  onClick={() => setSelectedProjectToPay(null)}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                >
+                  Cancel and Pay Later
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </PayPalScriptProvider>
       )}
 

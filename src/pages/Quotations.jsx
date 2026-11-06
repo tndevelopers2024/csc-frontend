@@ -167,7 +167,7 @@ export default function Quotations() {
     <div className="max-w-8xl mx-auto pb-12 font-sans">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#1e293b] mb-1">My Quotations</h1>
+        <h1 className="text-3xl font-bold text-[#1e293b] mb-1">Quotations</h1>
         <p className="text-gray-500 text-sm">Approve or review your quotes</p>
       </div>
 

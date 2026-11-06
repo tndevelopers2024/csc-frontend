@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiFolder, FiActivity, FiCheck, FiClock, FiChevronRight, FiMoreVertical, FiDownload, FiStar, FiUpload, FiFileText, FiUsers, FiSearch, FiGrid, FiMenu, FiBox } from 'react-icons/fi';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { FiPlus, FiFolder, FiActivity, FiCheck, FiClock, FiChevronRight, FiMoreVertical, FiDownload, FiStar, FiUpload, FiFileText, FiUsers, FiSearch, FiGrid, FiMenu, FiBox, FiX } from 'react-icons/fi';
 
 export default function Projects() {
   const navigate = useNavigate();
+  const outletContext = useOutletContext();
+  const openBuyHoursModal = outletContext?.openBuyHoursModal;
   const [projects, setProjects] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [filterStatus, setFilterStatus] = useState('All Status');
   const [filterDeliverable, setFilterDeliverable] = useState('All Deliverables');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('Newest First');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,17 +63,48 @@ export default function Projects() {
     }
   };
 
-  const displayedProjects = projects.filter(p => {
-    let statusMatch = true;
-    if (filterStatus === 'Starred') statusMatch = p.isStarred;
-    if (filterStatus === 'Active') statusMatch = !['Completed', 'Cancelled', 'Delivered'].includes(p.status);
-    if (filterStatus === 'Completed') statusMatch = ['Completed', 'Delivered'].includes(p.status);
+  const displayedProjects = projects
+    .filter(p => {
+      let statusMatch = true;
+      if (filterStatus === 'Starred') statusMatch = p.isStarred;
+      if (filterStatus === 'Active') statusMatch = !['Completed', 'Cancelled', 'Delivered'].includes(p.status);
+      if (filterStatus === 'Completed') statusMatch = ['Completed', 'Delivered'].includes(p.status);
 
-    let deliverableMatch = true;
-    if (filterDeliverable === 'Bookmarked') deliverableMatch = p.isStarred;
+      let deliverableMatch = true;
+      if (filterDeliverable === 'Bookmarked') deliverableMatch = p.isStarred;
 
-    return statusMatch && deliverableMatch;
-  });
+      let searchMatch = true;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const shortId8 = `csc-${p._id.substring(p._id.length - 8)}`.toLowerCase();
+        const shortId7 = `csc-${p._id.substring(p._id.length - 7)}`.toLowerCase();
+        const rawId = p._id.toLowerCase();
+        const title = (p.title || '').toLowerCase();
+        const appType = (p.appType || '').toLowerCase();
+        const cadOutput = (p.cadOutput || '').toLowerCase();
+        const status = (p.status || '').toLowerCase();
+
+        searchMatch = title.includes(q) || 
+                      rawId.includes(q) || 
+                      shortId8.includes(q) || 
+                      shortId7.includes(q) || 
+                      appType.includes(q) || 
+                      cadOutput.includes(q) || 
+                      status.includes(q);
+      }
+
+      return statusMatch && deliverableMatch && searchMatch;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'Oldest First') {
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      }
+      if (sortBy === 'Alphabetical') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      // Default: 'Newest First'
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
   
   const freeHours = user?.freeHoursRemaining || 0;
   const totalFreeHours = 3; // Hardcoded default based on feature logic
@@ -120,10 +155,9 @@ export default function Projects() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#1e293b] mb-2">My Projects</h1>
+          <h1 className="text-3xl font-bold text-[#1e293b] mb-2">Projects</h1>
           <p className="text-gray-500 text-sm max-w-2xl leading-relaxed">
-            Upload your scan data and tell us what you need. Our engineering team will review and send you a quotation.<br className="hidden sm:block" />
-            Track every Scan-to-CAD project from upload to delivery.
+            Upload your scan data and tell us what you need. Our engineering team will review and send you a quotation. Track every Scan-to-CAD project from upload to delivery.
           </p>
         </div>
         <button 
@@ -136,10 +170,16 @@ export default function Projects() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
         {/* Active Projects */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setFilterStatus(prev => prev === 'Active' ? 'All Status' : 'Active')}
+          className={`bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-all ${
+            filterStatus === 'Active' ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-sm' : 'border-gray-100 hover:border-blue-200'
+          }`}
+          title="Click to filter active projects"
+        >
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
               <FiActivity className="text-xl text-blue-500" />
@@ -150,11 +190,17 @@ export default function Projects() {
               <p className="text-[10px] font-bold text-blue-500 mt-1">In Progress</p>
             </div>
           </div>
-          <FiChevronRight className="text-gray-300 text-lg" />
+          <FiChevronRight className={`text-lg transition-transform ${filterStatus === 'Active' ? 'text-blue-500 translate-x-1' : 'text-gray-300'}`} />
         </div>
 
         {/* Completed Projects */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setFilterStatus(prev => prev === 'Completed' ? 'All Status' : 'Completed')}
+          className={`bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-all ${
+            filterStatus === 'Completed' ? 'border-green-500 ring-2 ring-green-500/20 shadow-sm' : 'border-gray-100 hover:border-green-200'
+          }`}
+          title="Click to filter completed projects"
+        >
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
               <FiCheck className="text-xl text-green-500" />
@@ -165,11 +211,21 @@ export default function Projects() {
               <p className="text-[10px] font-bold text-green-500 mt-1">All Time</p>
             </div>
           </div>
-          <FiChevronRight className="text-gray-300 text-lg" />
+          <FiChevronRight className={`text-lg transition-transform ${filterStatus === 'Completed' ? 'text-green-500 translate-x-1' : 'text-gray-300'}`} />
         </div>
 
         {/* CAD Hours Left */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => {
+            if (openBuyHoursModal) {
+              openBuyHoursModal();
+            } else {
+              navigate('/dashboard/billing');
+            }
+          }}
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-purple-300 transition-all"
+          title="Click to view billing or buy hours"
+        >
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
               <FiClock className="text-xl text-purple-500" />
@@ -183,34 +239,35 @@ export default function Projects() {
           <FiChevronRight className="text-gray-300 text-lg" />
         </div>
 
-        {/* Avg Turnaround Time */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center">
-              <FiActivity className="text-xl text-orange-500" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Avg. Turnaround Time</p>
-              <div className="text-2xl font-bold text-gray-900 leading-tight">48 hrs</div>
-              <p className="text-[10px] font-bold text-orange-500 mt-1">This Month</p>
-            </div>
-          </div>
-          <FiChevronRight className="text-gray-300 text-lg" />
-        </div>
-
       </div>
 
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" placeholder="Search by project name or ID..." className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-blue-500" />
+          <input 
+            type="text" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by project name or ID..." 
+            className="w-full pl-10 pr-10 py-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-blue-500 bg-white" 
+          />
+          {searchQuery && (
+            <button 
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              title="Clear search"
+            >
+              <FiX size={15} />
+            </button>
+          )}
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3">
           <select 
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[140px]"
+            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[130px]"
           >
             <option>All Status</option>
             <option>Starred</option>
@@ -220,24 +277,32 @@ export default function Projects() {
           <select 
             value={filterDeliverable}
             onChange={(e) => setFilterDeliverable(e.target.value)}
-            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[160px]"
+            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[150px]"
           >
             <option>All Deliverables</option>
             <option>Bookmarked</option>
           </select>
-          <select className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[140px]">
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-3 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:border-blue-500 min-w-[135px]"
+          >
             <option>Newest First</option>
+            <option>Oldest First</option>
+            <option>Alphabetical</option>
           </select>
-          <div className="flex bg-white border border-gray-200 rounded-lg p-1">
+          <div className="flex bg-white border border-gray-200 rounded-lg p-1 shrink-0">
             <button 
               onClick={() => setViewMode('grid')}
               className={`px-3 py-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-blue-100/50 text-[#3b82f6]' : 'text-gray-500 hover:text-gray-700'}`}
+              title="Grid View"
             >
               <FiGrid />
             </button>
             <button 
               onClick={() => setViewMode('list')}
               className={`px-3 py-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-blue-100/50 text-[#3b82f6]' : 'text-gray-500 hover:text-gray-700'}`}
+              title="List View"
             >
               <FiMenu />
             </button>
@@ -276,7 +341,11 @@ export default function Projects() {
             const currentIdx = getStepIndex(project.status);
 
             return (
-              <div key={project._id} className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] transition-all overflow-hidden">
+              <div 
+                key={project._id} 
+                onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col hover:shadow-lg hover:border-blue-200 transition-all overflow-hidden cursor-pointer group"
+              >
                 
                 {viewMode === 'grid' ? (
                   <>
@@ -284,7 +353,7 @@ export default function Projects() {
                       {/* Top: Thumbnail & Info */}
                       <div className="flex gap-5 mb-8">
                         {/* Thumbnail */}
-                        <div className="w-[120px] h-[120px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative">
+                        <div className="w-[120px] h-[120px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative group-hover:opacity-95 transition-opacity">
                           {project.scanFiles && project.scanFiles.length > 0 ? (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl"><FiFileText /></div>
                           ) : (
@@ -295,13 +364,16 @@ export default function Projects() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start mb-1">
-                            <h3 className="text-lg font-bold text-gray-900 truncate pr-2">{project.title}</h3>
+                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate pr-2">{project.title}</h3>
                             <div className="flex items-center gap-1 shrink-0">
                               <FiStar 
                                 className={`cursor-pointer ${project.isStarred ? 'text-yellow-400 fill-current' : 'text-gray-300 hover:text-gray-400'}`} 
                                 onClick={(e) => { e.stopPropagation(); toggleStar(project._id); }} 
                               />
-                              <FiMoreVertical className="text-gray-400 ml-1 cursor-pointer" />
+                              <FiMoreVertical 
+                                className="text-gray-400 ml-1 cursor-pointer" 
+                                onClick={(e) => e.stopPropagation()}
+                              />
                             </div>
                           </div>
                           
@@ -394,11 +466,15 @@ export default function Projects() {
                     </div>
 
                     {/* Bottom Actions */}
-                    <div className="border-t border-gray-100 bg-gray-50/50 mt-auto flex flex-col">
+                    <div 
+                      onClick={(e) => e.stopPropagation()} 
+                      className="border-t border-gray-100 bg-gray-50/50 mt-auto flex flex-col"
+                    >
                       {isDelivered ? (
                         <>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (project.completedFiles && project.completedFiles.length > 0) {
                                 window.open(`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${project.completedFiles[0].filename}`, '_blank');
                               } else {
@@ -410,7 +486,10 @@ export default function Projects() {
                             <FiDownload className="text-[#10b981] text-base" />
                           </button>
                           <button 
-                            onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/dashboard/projects/${project._id}`);
+                            }}
                             className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                             View Report
                             <FiFileText className="text-gray-400 text-base" />
@@ -418,11 +497,21 @@ export default function Projects() {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => navigate(`/dashboard/projects/${project._id}`)} className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/dashboard/projects/${project._id}`);
+                            }} 
+                            className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100">
                             View Timeline
                             <FiChevronRight className="text-[#3b82f6] text-base" />
                           </button>
-                          <button className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/dashboard/projects/${project._id}`);
+                            }} 
+                            className="w-full flex items-center justify-between px-6 py-4 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                             Upload More Files
                             <FiUpload className="text-gray-400 text-base" />
                           </button>
@@ -436,7 +525,7 @@ export default function Projects() {
                     <div className="flex-1 flex flex-col justify-between">
                       <div className="flex gap-6 mb-8">
                         {/* Thumbnail */}
-                        <div className="w-[140px] h-[140px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative">
+                        <div className="w-[140px] h-[140px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative group-hover:opacity-95 transition-opacity">
                           {project.scanFiles && project.scanFiles.length > 0 ? (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl"><FiFileText /></div>
                           ) : (
@@ -447,13 +536,16 @@ export default function Projects() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-xl font-bold text-gray-900 truncate pr-2">{project.title}</h3>
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate pr-2">{project.title}</h3>
                             <div className="flex items-center gap-1 shrink-0">
                               <FiStar 
                                 className={`cursor-pointer ${project.isStarred ? 'text-yellow-400 fill-current' : 'text-gray-300 hover:text-gray-400'}`} 
                                 onClick={(e) => { e.stopPropagation(); toggleStar(project._id); }} 
                               />
-                              <FiMoreVertical className="text-gray-400 ml-1 cursor-pointer" />
+                              <FiMoreVertical 
+                                className="text-gray-400 ml-1 cursor-pointer" 
+                                onClick={(e) => e.stopPropagation()} 
+                              />
                             </div>
                           </div>
                           
@@ -501,11 +593,15 @@ export default function Projects() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-col sm:flex-row gap-4 mt-auto">
+                      <div 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="flex flex-col sm:flex-row gap-4 mt-auto"
+                      >
                         {isDelivered ? (
                           <>
                             <button 
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (project.completedFiles && project.completedFiles.length > 0) {
                                   window.open(`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${project.completedFiles[0].filename}`, '_blank');
                                 } else {
@@ -516,17 +612,30 @@ export default function Projects() {
                               <FiDownload /> Download CAD
                             </button>
                             <button 
-                              onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/dashboard/projects/${project._id}`);
+                              }}
                               className="bg-white border border-gray-200 hover:border-[#10b981] hover:text-[#10b981] text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
                               <FiFileText /> View Report
                             </button>
                           </>
                         ) : (
                           <>
-                            <button onClick={() => navigate(`/dashboard/projects/${project._id}`)} className="bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/dashboard/projects/${project._id}`);
+                              }} 
+                              className="bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
                               View Timeline <FiChevronRight />
                             </button>
-                            <button className="bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/dashboard/projects/${project._id}`);
+                              }} 
+                              className="bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-700 font-semibold py-2.5 px-6 rounded-md transition-colors text-sm text-center flex-1 flex justify-center items-center gap-2 shadow-sm">
                               <FiUpload /> Upload More Files
                             </button>
                           </>

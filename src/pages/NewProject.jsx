@@ -1209,7 +1209,7 @@ export default function NewProject() {
             <div className="flex items-center mb-6">
               <TbScan className="text-[#3b82f6] text-2xl mr-3" />
               <h3 className="text-[17px] font-bold text-gray-900 leading-tight">
-                We Support All Major<br />Scan Sources
+                We Support All Major Scan Sources
               </h3>
             </div>
             
@@ -1247,7 +1247,7 @@ export default function NewProject() {
           <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
             <div className="flex items-center mb-4">
               <BiShieldAlt2 className="text-[#3b82f6] text-3xl mr-3" />
-              <h3 className="text-[17px] font-bold text-gray-900 leading-tight">Secure &<br />Confidential</h3>
+              <h3 className="text-[17px] font-bold text-gray-900 leading-tight">Secure & Confidential</h3>
             </div>
             <p className="text-sm text-gray-500 mb-6 leading-relaxed">
               Your data is protected with enterprise-grade security. We never share your files.
