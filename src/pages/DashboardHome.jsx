@@ -58,10 +58,40 @@ export default function DashboardHome() {
   }, [socket]);
 
   const renderStatusTag = (status) => {
-    if (status === 'Completed') return <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-[11px] font-bold">Completed</span>;
-    if (status === 'Approved' || status === 'In Progress') return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-[11px] font-bold">Modeling</span>;
-    if (status === 'Pending Quote' || status === 'Quote Ready') return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-[11px] font-bold">Quoting</span>;
+    if (status === 'Completed' || status === 'Delivered') return <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-[11px] font-bold">Completed</span>;
+    if (status === 'Approved' || status === 'In Progress' || status === 'QA Review' || status === 'Ongoing') return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded text-[11px] font-bold">Modeling</span>;
+    if (status === 'Pending Quote' || status === 'Quote Ready' || status === 'Under Review' || status === 'Revision Requested' || status === 'Requested' || status === 'Quoted') return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-[11px] font-bold">Quoting</span>;
+    if (status === 'Cancelled' || status === 'Rejected') return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded text-[11px] font-bold">{status}</span>;
     return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-[11px] font-bold">{status}</span>;
+  };
+
+  const getProjectProgressInfo = (status) => {
+    switch (status) {
+      case 'Completed':
+      case 'Delivered':
+        return { label: 'Completed', percent: 100, barWidth: '100%', barColor: 'bg-green-500' };
+      case 'QA Review':
+        return { label: 'QA review in progress', percent: 90, barWidth: '90%', barColor: 'bg-green-500' };
+      case 'In Progress':
+      case 'Ongoing':
+        return { label: 'CAD modeling in progress', percent: 65, barWidth: '65%', barColor: 'bg-green-500' };
+      case 'Approved':
+        return { label: 'Quote approved — queued for CAD', percent: 50, barWidth: '50%', barColor: 'bg-green-500' };
+      case 'Quote Ready':
+      case 'Quoted':
+        return { label: 'Quote pending approval', percent: 45, barWidth: '45%', barColor: 'bg-green-500' };
+      case 'Revision Requested':
+        return { label: 'Quote revision requested', percent: 35, barWidth: '35%', barColor: 'bg-green-500' };
+      case 'Under Review':
+        return { label: 'Technical review in progress', percent: 25, barWidth: '25%', barColor: 'bg-green-500' };
+      case 'Pending Quote':
+      case 'Requested':
+      default:
+        if (status === 'Cancelled' || status === 'Rejected') {
+          return { label: status, percent: 0, barWidth: '0%', barColor: 'bg-red-500' };
+        }
+        return { label: 'Quotation in progress', percent: 15, barWidth: '15%', barColor: 'bg-green-500' };
+    }
   };
 
   return (
@@ -185,27 +215,23 @@ export default function DashboardHome() {
                     {project.appType || 'Scan'} output • Submitted {new Date(project.createdAt).toLocaleDateString('en-GB')}
                   </p>
                   
-                  {(project.status === 'Completed' || project.status === 'Delivered') ? (
-                    <>
-                      <div className="flex justify-between text-xs font-semibold text-gray-700 mb-2 mt-2">
-                        <span>Completed</span>
-                        <span>100%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6">
-                        <div className="bg-green-500 h-1.5 rounded-full w-full"></div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between text-xs font-semibold text-gray-700 mb-2 mt-2">
-                        <span>{project.status === 'Quote Ready' ? 'Quote pending approval' : 'CAD modeling in progress'}</span>
-                        <span>{project.status === 'Quote Ready' ? '0%' : '65%'}</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6">
-                        <div className={`bg-green-500 h-1.5 rounded-full ${project.status === 'Quote Ready' ? 'w-[5%]' : 'w-[65%]'}`}></div>
-                      </div>
-                    </>
-                  )}
+                  {(() => {
+                    const progressInfo = getProjectProgressInfo(project.status);
+                    return (
+                      <>
+                        <div className="flex justify-between text-xs font-semibold text-gray-700 mb-2 mt-2">
+                          <span>{progressInfo.label}</span>
+                          <span>{progressInfo.percent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6">
+                          <div 
+                            className={`${progressInfo.barColor} h-1.5 rounded-full transition-all duration-300`} 
+                            style={{ width: progressInfo.barWidth }}
+                          ></div>
+                        </div>
+                      </>
+                    );
+                  })()}
                   
                   <div className="mt-2">
                     <button onClick={() => navigate(`/dashboard/projects/${project._id}`)} className="text-xs font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-md px-3 py-1.5 flex items-center transition-colors">

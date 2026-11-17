@@ -150,6 +150,33 @@ export default function Projects() {
     }
   };
 
+  const getStatusProgressLabel = (status) => {
+    switch (status) {
+      case 'Completed':
+      case 'Delivered':
+        return 'Delivered Successfully';
+      case 'QA Review':
+        return 'QA Review in Progress';
+      case 'In Progress':
+      case 'Ongoing':
+        return 'CAD Production';
+      case 'Approved':
+        return 'Quote Approved — Queued for CAD';
+      case 'Quote Ready':
+      case 'Quoted':
+        return 'Quote Pending Approval';
+      case 'Revision Requested':
+        return 'Quote Revision Requested';
+      case 'Under Review':
+        return 'Technical Review';
+      case 'Pending Quote':
+      case 'Requested':
+      default:
+        if (status === 'Cancelled' || status === 'Rejected') return status;
+        return 'Quotation in Progress';
+    }
+  };
+
   return (
     <div className="max-w-8xl mx-auto pb-12 font-sans">
       {/* Header */}
@@ -354,7 +381,7 @@ export default function Projects() {
                       <div className="flex gap-5 mb-8">
                         {/* Thumbnail */}
                         <div className="w-[120px] h-[120px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative group-hover:opacity-95 transition-opacity">
-                          {project.scanFiles && project.scanFiles.length > 0 ? (
+                          {(project.scanFiles && project.scanFiles.length > 0) || (project.links && project.links.length > 0) ? (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl"><FiFileText /></div>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl"><FiBox /></div>
@@ -423,7 +450,7 @@ export default function Projects() {
                         </div>
                         
                         <div className="mb-4">
-                          <p className="text-[11px] font-bold text-gray-600 mb-2">{isDelivered ? 'Delivered Successfully' : 'CAD Production'}</p>
+                          <p className="text-[11px] font-bold text-gray-600 mb-2">{getStatusProgressLabel(project.status)}</p>
                           <div className="flex items-center gap-3">
                             <h4 className="text-xl font-bold text-gray-900 w-12">{getProgressPercent(project.status)}%</h4>
                             <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -526,7 +553,7 @@ export default function Projects() {
                       <div className="flex gap-6 mb-8">
                         {/* Thumbnail */}
                         <div className="w-[140px] h-[140px] bg-gray-200 rounded-lg shrink-0 overflow-hidden relative group-hover:opacity-95 transition-opacity">
-                          {project.scanFiles && project.scanFiles.length > 0 ? (
+                          {(project.scanFiles && project.scanFiles.length > 0) || (project.links && project.links.length > 0) ? (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl"><FiFileText /></div>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl"><FiBox /></div>
@@ -650,7 +677,7 @@ export default function Projects() {
                       </div>
                       
                       <div className="mb-8">
-                        <p className="text-xs font-bold text-gray-600 mb-3">{isDelivered ? 'Delivered Successfully' : 'CAD Production'}</p>
+                        <p className="text-xs font-bold text-gray-600 mb-3">{getStatusProgressLabel(project.status)}</p>
                         <div className="flex items-center gap-4">
                           <h4 className="text-2xl font-bold text-gray-900 w-16">{getProgressPercent(project.status)}%</h4>
                           <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">

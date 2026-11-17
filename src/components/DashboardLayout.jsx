@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BiHomeAlt, BiFile, BiFolder, BiCreditCard, BiBell, BiCog, BiSupport, BiHelpCircle } from 'react-icons/bi';
-import { FiPlus } from 'react-icons/fi';
+import { FiPlus, FiDownload } from 'react-icons/fi';
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io';
 import BuyHoursModal from './BuyHoursModal';
 import { useSocket } from '../context/SocketContext';
@@ -84,6 +84,24 @@ export default function DashboardLayout() {
     navigate('/login');
   };
 
+  const handleDownloadBankDetails = () => {
+    const files = [
+      { url: '/pdf/Bank-Details-01.pdf', name: 'Bank-Details-01.pdf' },
+      { url: '/pdf/Bank-Details-02.pdf', name: 'Bank-Details-02.pdf' }
+    ];
+
+    files.forEach((file, index) => {
+      setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = file.url;
+        link.setAttribute('download', file.name);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, index * 300);
+    });
+  };
+
   const getInitials = () => {
     if (!user) return 'U';
     return `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase();
@@ -117,6 +135,16 @@ export default function DashboardLayout() {
           <img src="/images/logo.png" alt="ConvertScanToCAD" className="h-12 object-contain" />
         </div>
         <div className="flex items-center space-x-6 text-gray-600">
+          <button
+            onClick={handleDownloadBankDetails}
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-blue-500 text-gray-700 hover:text-blue-600 bg-gray-50/80 hover:bg-blue-50 text-xs sm:text-sm font-semibold transition-all shadow-sm group cursor-pointer"
+            title="Download Bank Details (Bank-Details-01.pdf & Bank-Details-02.pdf)"
+          >
+            <FiDownload className="text-base text-blue-500 group-hover:text-blue-600 transition-colors" />
+            <span>Bank Details</span>
+          </button>
+
           <Link 
             to="/dashboard/support" 
             className="flex items-center hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"

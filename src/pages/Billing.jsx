@@ -144,15 +144,25 @@ export default function Billing() {
   // Free hours card should be removed once it's used
   const isFreeHoursUsed = freeHoursRemaining <= 0 || (freeHoursUsed >= 3 && freeHoursRemaining <= 0);
 
-  // An invoice should NOT be an outstanding invoice before the PO date or before project completion.
+  // An invoice should NOT be an outstanding invoice before the PO date has passed.
+  // Till the PO date, it remains only in the Project Billing section.
   // Unaccepted quotes (e.g. Quote Ready, Revision Requested) must NEVER be treated as outstanding invoices.
   const isInvoiceOutstanding = (p) => {
     if (!p.billableHours || p.billableHours <= 0) return false;
     if (!isAcceptedOrActive(p)) return false; // Quote not accepted yet
+    
     const now = new Date();
-    const isCompleted = isProjectCompleted(p);
-    const isPoDateReached = Boolean(p.paymentDeadline && now >= new Date(p.paymentDeadline));
-    return isCompleted || isPoDateReached;
+    
+    // If a PO payment deadline is set, the invoice only becomes an overdue outstanding invoice
+    // AFTER the PO date has passed. Till then, it remains only in Project Billing.
+    if (p.paymentDeadline) {
+      const deadline = new Date(p.paymentDeadline);
+      deadline.setHours(23, 59, 59, 999);
+      return now > deadline;
+    }
+    
+    // If no PO date was set, it only becomes outstanding once the project is completed
+    return isProjectCompleted(p);
   };
 
   const outstandingProjects = projects.filter(isInvoiceOutstanding);

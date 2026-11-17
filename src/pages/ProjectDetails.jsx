@@ -645,7 +645,7 @@ export default function ProjectDetails() {
             <div className="border-b border-gray-200 flex flex-wrap gap-x-8 gap-y-2">
               {[
                 { id: 'details', label: 'Project Details' },
-                { id: 'original', label: `Original Files (${project.scanFiles?.length || 0})` },
+                { id: 'original', label: `Original Files (${(project.scanFiles?.length || 0) + (project.links?.length || 0)})` },
                 { id: 'supporting', label: `Supporting Docs (${project.referenceImages?.length || 0})` },
                 { id: 'completed', label: `Completed Files (${project.completedFiles?.length || 0})` },
                 { id: 'invoice', label: `Quotation & Invoice Docs (${(project.quotationFiles?.length || 0) + (project.invoiceFiles?.length || 0)})` }
